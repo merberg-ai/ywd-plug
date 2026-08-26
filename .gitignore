@@ -1,0 +1,34 @@
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+.vite/
+
+# Environment/local overrides
+.env
+.env.*
+!.env.example
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Local/private radio fixtures
+# Do not commit vendor firmware or questionable vendor-generated images.
+test/fixtures/private/
+test/fixtures/db25d/*.bin
+
+# Temporary backups
+*.bak
+*.tmp
