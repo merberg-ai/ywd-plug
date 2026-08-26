@@ -19,8 +19,18 @@ git -C "$TMP/neonplug" checkout --quiet --detach "$UPSTREAM_COMMIT"
 ACTUAL="$(git -C "$TMP/neonplug" rev-parse HEAD)"
 [[ "$ACTUAL" == "$UPSTREAM_COMMIT" ]] || { echo "[FAIL] upstream SHA mismatch" >&2; exit 2; }
 
+hash_dm32_tree() {
+  local dir="$1"
+  (
+    cd "$dir"
+    find . -type f -print0 | sort -z | xargs -0 sha256sum
+  ) | sha256sum | awk '{print $1}'
+}
+
 # Fingerprint the radio engine before any YWD presentation/namespace patch.
-UPSTREAM_DM32_HASH="$({ find "$TMP/neonplug/src/radios/dm32uv" -type f -print0 | sort -z | xargs -0 sha256sum; } | sha256sum | awk '{print $1}')"
+# Hash relative paths + file contents so the temporary checkout path itself is
+# not part of the comparison.
+UPSTREAM_DM32_HASH="$(hash_dm32_tree "$TMP/neonplug/src/radios/dm32uv")"
 
 # Copy the complete implementation/test/build tree, but preserve YWD repository
 # governance/docs and avoid bulky upstream promotional artwork.
@@ -39,7 +49,7 @@ rsync -a "$TMP/neonplug/" "$ROOT/" \
 
 python3 "$ROOT/recovery/tools/apply_ywd_recovery.py" "$ROOT"
 
-RECOVERED_DM32_HASH="$({ find "$ROOT/src/radios/dm32uv" -type f -print0 | sort -z | xargs -0 sha256sum; } | sha256sum | awk '{print $1}')"
+RECOVERED_DM32_HASH="$(hash_dm32_tree "$ROOT/src/radios/dm32uv")"
 if [[ "$RECOVERED_DM32_HASH" != "$UPSTREAM_DM32_HASH" ]]; then
   echo "[FAIL] DM-32UV radio engine changed during source recovery" >&2
   echo "upstream : $UPSTREAM_DM32_HASH" >&2
