@@ -10,4 +10,6 @@ The recovery is intentionally conservative:
 4. prove `src/radios/dm32uv/` was not modified;
 5. run unit, production-build, and single-file-build gates.
 
+The GitHub recovery workflow uses these same gates before it is allowed to commit the reconstructed source to `dev`.
+
 Once the source recovery has landed and hardware regression passes, this machinery can be retired to historical documentation rather than becoming a permanent build dependency.
