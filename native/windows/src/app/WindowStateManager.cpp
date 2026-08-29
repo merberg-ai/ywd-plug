@@ -12,8 +12,7 @@ constexpr auto visibilityKey = "window/visibility";
 bool isPersistableVisibility(QWindow::Visibility visibility)
 {
     return visibility == QWindow::Windowed
-        || visibility == QWindow::Maximized
-        || visibility == QWindow::Minimized;
+        || visibility == QWindow::Maximized;
 }
 }
 
@@ -93,9 +92,6 @@ void WindowStateManager::showRestored()
     switch (m_restoreVisibility) {
     case QWindow::Maximized:
         m_window->showMaximized();
-        break;
-    case QWindow::Minimized:
-        m_window->showMinimized();
         break;
     case QWindow::Windowed:
     default:
