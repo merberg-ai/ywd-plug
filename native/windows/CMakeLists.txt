@@ -27,6 +27,8 @@ qt_add_executable(ywd_plug WIN32
     src/app/AppController.h
     src/app/WindowsChrome.cpp
     src/app/WindowsChrome.h
+    src/app/WindowStateManager.cpp
+    src/app/WindowStateManager.h
     src/serial/WinSerialPort.cpp
     src/serial/WinSerialPort.h
     src/radios/dm32uv/DM32Connection.cpp
@@ -39,6 +41,7 @@ qt_add_qml_module(ywd_plug
     VERSION 1.0
     QML_FILES
         qml/Main.qml
+        qml/SplashWindow.qml
         qml/components/NavButton.qml
         qml/components/StatusPill.qml
     RESOURCES
