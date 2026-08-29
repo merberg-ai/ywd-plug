@@ -11,9 +11,9 @@ Rectangle {
     implicitWidth: label.implicitWidth + 30
     implicitHeight: 26
     radius: 0
-    color: "#050502"
+    color: "#070809"
     border.width: 1
-    border.color: root.error ? "#ff4d4d" : root.good ? "#55ff77" : root.busy ? "#ffb000" : "#5c3d00"
+    border.color: root.error ? "#e45c5c" : root.good ? "#58d878" : root.busy ? "#d79a2b" : "#4a4f54"
 
     Row {
         anchors.centerIn: parent
@@ -21,7 +21,7 @@ Rectangle {
 
         Text {
             text: root.error ? "!" : root.good ? "+" : root.busy ? "*" : "-"
-            color: root.error ? "#ff4d4d" : root.good ? "#55ff77" : root.busy ? "#ffb000" : "#8a5d00"
+            color: root.error ? "#e45c5c" : root.good ? "#58d878" : root.busy ? "#d79a2b" : "#83898f"
             font.family: "Consolas"
             font.pixelSize: 11
             font.bold: true
@@ -37,7 +37,7 @@ Rectangle {
         Text {
             id: label
             text: "[ " + root.text + " ]"
-            color: root.error ? "#ff6b6b" : root.good ? "#7cff94" : root.busy ? "#ffd166" : "#a87818"
+            color: root.error ? "#ff7373" : root.good ? "#7eea95" : root.busy ? "#f0b43c" : "#b8bdc2"
             font.family: "Consolas"
             font.pixelSize: 10
             font.bold: true
