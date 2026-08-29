@@ -14,7 +14,7 @@ The next major radio target is the **Radioddity DB-25D Pro**. DB-25D support wil
 
 ### Native Windows application
 
-The `dev-win` branch contains a separate native Windows CPS under [`native/windows/`](native/windows/). It uses **C++20 + Qt 6/QML + Qt SerialPort** rather than embedding the browser application.
+The `dev-win` branch contains a separate native Windows CPS under [`native/windows/`](native/windows/). It uses **C++20 + Qt 6/QML with a native Win32 COM transport** rather than embedding the browser application or depending on Qt SerialPort.
 
 The first native milestone is intentionally read-only: enumerate Windows COM ports and perform the proven DM-32UV `PSEARCH` → `PASSSTA` → `SYSINFO` identification handshake. It does **not** enter programming mode and does **not** write radio memory yet.
 
