@@ -30,6 +30,7 @@ ApplicationWindow {
     property color greenDim: "#235d31"
     property color red: "#e45c5c"
     property color muted: "#676d73"
+    property int activePage: 1
 
     property bool operationError: appController.status.indexOf("FAILED") >= 0
                                   || appController.status.indexOf("BLOCKED") >= 0
@@ -135,9 +136,9 @@ ApplicationWindow {
 
                 StatusPill {
                     Layout.alignment: Qt.AlignTop | Qt.AlignRight
-                    text: readingBackup ? "READING" : probing ? "PROBING" : operationError ? "FAULT" : appController.backupReady ? "BACKUP OK" : appController.radioDetected ? "LINK OK" : "STANDBY"
+                    text: readingBackup ? "READING" : probing ? "PROBING" : operationError ? "FAULT" : appController.channelsReady ? "CHANNELS OK" : appController.backupReady ? "BACKUP OK" : appController.radioDetected ? "LINK OK" : "STANDBY"
                     busy: appController.busy
-                    good: appController.backupReady || appController.radioDetected
+                    good: appController.channelsReady || appController.backupReady || appController.radioDetected
                     error: window.operationError
                 }
             }
@@ -162,8 +163,21 @@ ApplicationWindow {
 
                     Text { text: "+--[ RADIO ]--------------------------------"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 10; Layout.bottomMargin: 5 }
 
-                    NavButton { Layout.fillWidth: true; indexText: "01"; text: "Connection"; active: true }
-                    NavButton { Layout.fillWidth: true; indexText: "02"; text: "Channels"; enabled: false }
+                    NavButton {
+                        Layout.fillWidth: true
+                        indexText: "01"
+                        text: "Connection"
+                        active: window.activePage === 1
+                        onClicked: window.activePage = 1
+                    }
+                    NavButton {
+                        Layout.fillWidth: true
+                        indexText: "02"
+                        text: "Channels"
+                        enabled: appController.channelsReady
+                        active: window.activePage === 2
+                        onClicked: window.activePage = 2
+                    }
                     NavButton { Layout.fillWidth: true; indexText: "03"; text: "Zones"; enabled: false }
                     NavButton { Layout.fillWidth: true; indexText: "04"; text: "Scan Lists"; enabled: false }
                     NavButton { Layout.fillWidth: true; indexText: "05"; text: "Contacts"; enabled: false }
@@ -180,7 +194,7 @@ ApplicationWindow {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 112
+                        Layout.preferredHeight: 124
                         color: window.black2
                         border.color: window.line
                         border.width: 1
@@ -192,399 +206,447 @@ ApplicationWindow {
 
                             Text { text: "SYSTEM> STATUS"; color: window.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
                             Text { text: "BRANCH : dev-win"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 9 }
-                            Text { text: "PHASE  : milestone-2"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 9 }
+                            Text { text: "PHASE  : milestone-2b"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 9 }
                             Text { text: "READ   : " + (appController.backupReady ? "CAPTURED" : "ARMED"); color: appController.backupReady ? window.green : window.silverDim; font.family: "Consolas"; font.pixelSize: 9; font.bold: true }
+                            Text { text: "CHAN   : " + (appController.channelsReady ? appController.channelCount : "--"); color: appController.channelsReady ? window.green : window.silverDim; font.family: "Consolas"; font.pixelSize: 9; font.bold: true }
                             Text { text: "WRITE  : LOCKED"; color: window.green; font.family: "Consolas"; font.pixelSize: 9; font.bold: true }
                         }
                     }
                 }
             }
 
-            Flickable {
+            StackLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                contentWidth: width
-                contentHeight: contentColumn.implicitHeight + 52
-                clip: true
+                currentIndex: window.activePage - 1
 
-                ColumnLayout {
-                    id: contentColumn
-                    width: parent.width
-                    spacing: 18
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.margins: 26
+                Flickable {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    contentWidth: width
+                    contentHeight: contentColumn.implicitHeight + 52
+                    clip: true
 
-                    Item { Layout.preferredHeight: 8 }
+                    ColumnLayout {
+                        id: contentColumn
+                        width: parent.width
+                        spacing: 18
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.margins: 26
 
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 10
-                        Text { text: "> RADIO CONNECTION / RAW BACKUP"; color: window.silverBright; font.family: "Consolas"; font.pixelSize: 21; font.bold: true }
-                        Item { Layout.fillWidth: true }
-                        Text { text: "SYS://RADIO/READ"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
-                    }
+                        Item { Layout.preferredHeight: 8 }
 
-                    Text {
-                        Layout.fillWidth: true
-                        text: "Phase 2 keeps radio writes locked. First probe the selected COM port. RAW BACKUP then repeats the handshake, reads firmware and V-frame 0x0A, validates the radio-reported memory range, enters PROGRAM mode, and reads that range in 4096-byte blocks."
-                        wrapMode: Text.WordWrap
-                        color: window.silverDim
-                        font.family: "Consolas"
-                        font.pixelSize: 11
-                        lineHeight: 1.25
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 388
-                        color: "#070809"
-                        border.color: window.lineStrong
-                        border.width: 1
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+                            Text { text: "> RADIO CONNECTION / RAW BACKUP"; color: window.silverBright; font.family: "Consolas"; font.pixelSize: 21; font.bold: true }
+                            Item { Layout.fillWidth: true }
+                            Text { text: "SYS://RADIO/READ"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
+                        }
 
                         Text {
-                            text: "[ SERIAL INTERFACE / WIN32 / READ-ONLY ]"
-                            color: window.silverBright
+                            Layout.fillWidth: true
+                            text: "Phase 2 keeps radio writes locked. First probe the selected COM port. RAW BACKUP then repeats the handshake, reads firmware and V-frame 0x0A, validates the radio-reported memory range, enters PROGRAM mode, and reads that range in 4096-byte blocks. LOAD LAST BACKUP decodes the newest saved image without touching the radio."
+                            wrapMode: Text.WordWrap
+                            color: window.silverDim
                             font.family: "Consolas"
-                            font.pixelSize: 10
-                            font.bold: true
-                            x: 14
-                            y: -7
-                            leftPadding: 6
-                            rightPadding: 6
-                            Rectangle { anchors.fill: parent; anchors.margins: -2; color: window.black; z: -1 }
+                            font.pixelSize: 11
+                            lineHeight: 1.25
                         }
 
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 22
-                            anchors.topMargin: 28
-                            spacing: 12
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 388
+                            color: "#070809"
+                            border.color: window.lineStrong
+                            border.width: 1
 
-                            Text { text: "PORT> SELECT DEVICE"; color: window.amber; font.family: "Consolas"; font.pixelSize: 10 }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 10
-
-                                ComboBox {
-                                    id: portBox
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 42
-                                    model: appController.ports
-                                    textRole: "label"
-                                    valueRole: "name"
-                                    enabled: !appController.busy && count > 0
-
-                                    contentItem: Text {
-                                        leftPadding: 12
-                                        rightPadding: 30
-                                        text: "> " + portBox.displayText
-                                        color: portBox.enabled ? window.silverBright : window.muted
-                                        verticalAlignment: Text.AlignVCenter
-                                        elide: Text.ElideRight
-                                        font.family: "Consolas"
-                                        font.pixelSize: 11
-                                    }
-
-                                    indicator: Text {
-                                        x: portBox.width - width - 12
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: "v"
-                                        color: window.amber
-                                        font.family: "Consolas"
-                                        font.pixelSize: 12
-                                        font.bold: true
-                                    }
-
-                                    background: Rectangle {
-                                        color: window.black
-                                        border.color: portBox.activeFocus ? window.amber : window.lineStrong
-                                        border.width: 1
-                                    }
-
-                                    delegate: ItemDelegate {
-                                        width: portBox.width
-                                        height: 34
-                                        contentItem: Text {
-                                            text: "> " + modelData.label
-                                            color: highlighted ? window.black : window.silver
-                                            font.family: "Consolas"
-                                            font.pixelSize: 10
-                                            verticalAlignment: Text.AlignVCenter
-                                        }
-                                        background: Rectangle { color: highlighted ? window.silver : window.panel }
-                                    }
-
-                                    popup: Popup {
-                                        y: portBox.height
-                                        width: portBox.width
-                                        implicitHeight: contentItem.implicitHeight
-                                        padding: 1
-                                        contentItem: ListView {
-                                            clip: true
-                                            implicitHeight: contentHeight
-                                            model: portBox.popup.visible ? portBox.delegateModel : null
-                                            currentIndex: portBox.highlightedIndex
-                                            ScrollIndicator.vertical: ScrollIndicator { }
-                                        }
-                                        background: Rectangle { color: window.panel; border.color: window.lineStrong; border.width: 1 }
-                                    }
-                                }
-
-                                Button {
-                                    id: refreshButton
-                                    Layout.preferredWidth: 120
-                                    Layout.preferredHeight: 42
-                                    text: "[ REFRESH ]"
-                                    enabled: !appController.busy
-                                    onClicked: appController.refreshPorts()
-                                    contentItem: Text {
-                                        text: refreshButton.text
-                                        color: refreshButton.hovered ? window.black : window.silver
-                                        font.family: "Consolas"
-                                        font.pixelSize: 10
-                                        font.bold: true
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                    background: Rectangle {
-                                        color: refreshButton.hovered ? window.silver : window.panel
-                                        border.color: refreshButton.hovered ? window.silverBright : window.lineStrong
-                                        border.width: 1
-                                    }
-                                }
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 12
-
-                                Button {
-                                    id: probeButton
-                                    Layout.preferredWidth: 190
-                                    Layout.preferredHeight: 44
-                                    text: probing ? "[ PROBING... ]" : "[ EXECUTE PROBE ]"
-                                    enabled: !appController.busy && portBox.count > 0
-                                    onClicked: appController.probePort(portBox.currentValue)
-                                    contentItem: Text {
-                                        text: probeButton.text
-                                        color: !probeButton.enabled ? window.muted : probeButton.hovered ? window.black : window.amberBright
-                                        font.family: "Consolas"
-                                        font.pixelSize: 10
-                                        font.bold: true
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                    background: Rectangle {
-                                        color: probeButton.enabled && probeButton.hovered ? window.amber : window.panel
-                                        border.color: probeButton.enabled ? window.amber : window.line
-                                        border.width: 1
-                                    }
-                                }
-
-                                Button {
-                                    id: backupButton
-                                    Layout.preferredWidth: 210
-                                    Layout.preferredHeight: 44
-                                    text: readingBackup ? "[ READING " + appController.readProgress + "% ]" : "[ RAW BACKUP ]"
-                                    enabled: !appController.busy
-                                             && appController.radioDetected
-                                             && portBox.count > 0
-                                             && portBox.currentValue === appController.detectedPort
-                                    onClicked: appController.readRawBackup(portBox.currentValue)
-                                    contentItem: Text {
-                                        text: backupButton.text
-                                        color: !backupButton.enabled ? window.muted : backupButton.hovered ? window.black : window.silverBright
-                                        font.family: "Consolas"
-                                        font.pixelSize: 10
-                                        font.bold: true
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                    background: Rectangle {
-                                        color: backupButton.enabled && backupButton.hovered ? window.silver : window.panel
-                                        border.color: backupButton.enabled ? window.silver : window.line
-                                        border.width: 1
-                                    }
-                                }
-
-                                Text {
-                                    text: readingBackup ? "* BLOCK READ ACTIVE" : appController.backupReady ? "+ RAW IMAGE CAPTURED" : appController.radioDetected ? "+ PROBE PASSED" : "- LINK IDLE"
-                                    color: readingBackup ? window.amber : (appController.backupReady || appController.radioDetected) ? window.green : window.silverDim
-                                    font.family: "Consolas"
-                                    font.pixelSize: 10
-                                    font.bold: true
-                                    SequentialAnimation on opacity {
-                                        running: appController.busy
-                                        loops: Animation.Infinite
-                                        NumberAnimation { to: 0.25; duration: 320 }
-                                        NumberAnimation { to: 1.0; duration: 320 }
-                                    }
-                                }
-
-                                Item { Layout.fillWidth: true }
-                                Text { text: portBox.count > 0 ? (portBox.currentValue + " / 115200 / 8N1") : "NO COM PORT"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 10
-                                visible: readingBackup || appController.backupReady
-
-                                Text { text: "READ>"; color: readingBackup ? window.amber : window.green; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
-
-                                Rectangle {
-                                    id: progressTrack
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 16
-                                    color: window.black
-                                    border.color: window.lineStrong
-                                    border.width: 1
-
-                                    Rectangle {
-                                        x: 1
-                                        y: 1
-                                        height: parent.height - 2
-                                        width: Math.max(0, (parent.width - 2) * appController.readProgress / 100)
-                                        color: appController.backupReady ? window.green : window.amber
-                                    }
-                                }
-
-                                Text {
-                                    text: appController.readProgress.toString().padStart(3, "0") + "%"
-                                    color: appController.backupReady ? window.green : window.silver
-                                    font.family: "Consolas"
-                                    font.pixelSize: 10
-                                    font.bold: true
-                                }
-                            }
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 58
-                                color: window.black
-                                border.color: window.operationError ? window.red : appController.backupReady ? window.greenDim : appController.radioDetected ? window.greenDim : window.line
-                                border.width: 1
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 12
-                                    anchors.rightMargin: 12
-                                    spacing: 10
-
-                                    Text {
-                                        text: window.operationError ? "ERR>" : appController.backupReady || appController.radioDetected ? "OK >" : "SYS>"
-                                        color: window.operationError ? window.red : appController.backupReady || appController.radioDetected ? window.green : window.amber
-                                        font.family: "Consolas"
-                                        font.pixelSize: 10
-                                        font.bold: true
-                                    }
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: appController.status
-                                        color: window.operationError ? window.red : appController.backupReady || appController.radioDetected ? window.green : window.silver
-                                        verticalAlignment: Text.AlignVCenter
-                                        elide: Text.ElideRight
-                                        font.family: "Consolas"
-                                        font.pixelSize: 10
-                                        font.bold: true
-                                    }
-                                    Text {
-                                        text: "_"
-                                        color: appController.busy ? window.amberBright : "transparent"
-                                        font.family: "Consolas"
-                                        font.pixelSize: 12
-                                        font.bold: true
-                                        SequentialAnimation on opacity {
-                                            running: appController.busy
-                                            loops: Animation.Infinite
-                                            NumberAnimation { to: 0; duration: 420 }
-                                            NumberAnimation { to: 1; duration: 420 }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: appController.backupReady ? 264 : 226
-                        color: "#070809"
-                        border.color: window.line
-                        border.width: 1
-
-                        Text {
-                            text: "[ SESSION STATUS / PHASE 2 ]"
-                            color: window.silverBright
-                            font.family: "Consolas"
-                            font.pixelSize: 10
-                            font.bold: true
-                            x: 14
-                            y: -7
-                            leftPadding: 6
-                            rightPadding: 6
-                            Rectangle { anchors.fill: parent; anchors.margins: -2; color: window.black; z: -1 }
-                        }
-
-                        Column {
-                            anchors.fill: parent
-                            anchors.margins: 22
-                            anchors.topMargin: 28
-                            spacing: 9
-
-                            Text { text: "[OK]  NATIVE WIN32 SERIAL BACKEND ONLINE"; color: window.green; font.family: "Consolas"; font.pixelSize: 10 }
-                            Text { text: "[OK]  PSEARCH / PASSSTA / SYSINFO PROBE PATH PROVEN"; color: window.green; font.family: "Consolas"; font.pixelSize: 10 }
-                            Text { text: "[--]  WRITE-MEMORY API NOT IMPLEMENTED / RADIO WRITES LOCKED"; color: window.amber; font.family: "Consolas"; font.pixelSize: 10 }
                             Text {
-                                text: appController.backupReady
-                                      ? "[OK]  PROGRAM MODE + V-FRAME RANGE + 4KB READ PATH COMPLETED"
-                                      : "[--]  PROGRAM MODE + 4KB READ PATH AWAITING HARDWARE TEST"
-                                color: appController.backupReady ? window.green : window.silverDim
-                                font.family: "Consolas"
-                                font.pixelSize: 10
-                            }
-                            Text {
-                                visible: appController.backupReady
-                                width: parent.width
-                                text: "BIN>  " + appController.backupPath
-                                color: window.silver
-                                elide: Text.ElideMiddle
-                                font.family: "Consolas"
-                                font.pixelSize: 9
-                            }
-                            Text {
-                                visible: appController.backupReady
-                                width: parent.width
-                                text: "JSON> " + appController.backupManifestPath
-                                color: window.silverDim
-                                elide: Text.ElideMiddle
-                                font.family: "Consolas"
-                                font.pixelSize: 9
-                            }
-                            Text {
-                                visible: appController.backupReady
-                                text: "SHA>  " + appController.backupSha256.toUpperCase()
-                                color: window.green
-                                font.family: "Consolas"
-                                font.pixelSize: 9
-                            }
-                            Text {
-                                text: appController.backupReady
-                                      ? "NEXT> VERIFY RAW IMAGE AGAINST BROWSER READ / THEN PORT CHANNEL DECODER"
-                                      : appController.radioDetected
-                                        ? "NEXT> EXECUTE RAW BACKUP -- EXPECT A LONG READ SESSION"
-                                        : "NEXT> ESTABLISH A VALID DM-32UV LINK"
+                                text: "[ SERIAL INTERFACE / WIN32 / READ-ONLY ]"
                                 color: window.silverBright
                                 font.family: "Consolas"
                                 font.pixelSize: 10
                                 font.bold: true
+                                x: 14
+                                y: -7
+                                leftPadding: 6
+                                rightPadding: 6
+                                Rectangle { anchors.fill: parent; anchors.margins: -2; color: window.black; z: -1 }
+                            }
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 22
+                                anchors.topMargin: 28
+                                spacing: 12
+
+                                Text { text: "PORT> SELECT DEVICE"; color: window.amber; font.family: "Consolas"; font.pixelSize: 10 }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
+
+                                    ComboBox {
+                                        id: portBox
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 42
+                                        model: appController.ports
+                                        textRole: "label"
+                                        valueRole: "name"
+                                        enabled: !appController.busy && count > 0
+
+                                        contentItem: Text {
+                                            leftPadding: 12
+                                            rightPadding: 30
+                                            text: "> " + portBox.displayText
+                                            color: portBox.enabled ? window.silverBright : window.muted
+                                            verticalAlignment: Text.AlignVCenter
+                                            elide: Text.ElideRight
+                                            font.family: "Consolas"
+                                            font.pixelSize: 11
+                                        }
+
+                                        indicator: Text {
+                                            x: portBox.width - width - 12
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: "v"
+                                            color: window.amber
+                                            font.family: "Consolas"
+                                            font.pixelSize: 12
+                                            font.bold: true
+                                        }
+
+                                        background: Rectangle {
+                                            color: window.black
+                                            border.color: portBox.activeFocus ? window.amber : window.lineStrong
+                                            border.width: 1
+                                        }
+
+                                        delegate: ItemDelegate {
+                                            width: portBox.width
+                                            height: 34
+                                            contentItem: Text {
+                                                text: "> " + modelData.label
+                                                color: highlighted ? window.black : window.silver
+                                                font.family: "Consolas"
+                                                font.pixelSize: 10
+                                                verticalAlignment: Text.AlignVCenter
+                                            }
+                                            background: Rectangle { color: highlighted ? window.silver : window.panel }
+                                        }
+
+                                        popup: Popup {
+                                            y: portBox.height
+                                            width: portBox.width
+                                            implicitHeight: contentItem.implicitHeight
+                                            padding: 1
+                                            contentItem: ListView {
+                                                clip: true
+                                                implicitHeight: contentHeight
+                                                model: portBox.popup.visible ? portBox.delegateModel : null
+                                                currentIndex: portBox.highlightedIndex
+                                                ScrollIndicator.vertical: ScrollIndicator { }
+                                            }
+                                            background: Rectangle { color: window.panel; border.color: window.lineStrong; border.width: 1 }
+                                        }
+                                    }
+
+                                    Button {
+                                        id: refreshButton
+                                        Layout.preferredWidth: 120
+                                        Layout.preferredHeight: 42
+                                        text: "[ REFRESH ]"
+                                        enabled: !appController.busy
+                                        onClicked: appController.refreshPorts()
+                                        contentItem: Text {
+                                            text: refreshButton.text
+                                            color: refreshButton.hovered ? window.black : window.silver
+                                            font.family: "Consolas"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                        background: Rectangle {
+                                            color: refreshButton.hovered ? window.silver : window.panel
+                                            border.color: refreshButton.hovered ? window.silverBright : window.lineStrong
+                                            border.width: 1
+                                        }
+                                    }
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
+
+                                    Button {
+                                        id: probeButton
+                                        Layout.preferredWidth: 170
+                                        Layout.preferredHeight: 44
+                                        text: probing ? "[ PROBING... ]" : "[ EXECUTE PROBE ]"
+                                        enabled: !appController.busy && portBox.count > 0
+                                        onClicked: appController.probePort(portBox.currentValue)
+                                        contentItem: Text {
+                                            text: probeButton.text
+                                            color: !probeButton.enabled ? window.muted : probeButton.hovered ? window.black : window.amberBright
+                                            font.family: "Consolas"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                        background: Rectangle {
+                                            color: probeButton.enabled && probeButton.hovered ? window.amber : window.panel
+                                            border.color: probeButton.enabled ? window.amber : window.line
+                                            border.width: 1
+                                        }
+                                    }
+
+                                    Button {
+                                        id: backupButton
+                                        Layout.preferredWidth: 180
+                                        Layout.preferredHeight: 44
+                                        text: readingBackup ? "[ READING " + appController.readProgress + "% ]" : "[ RAW BACKUP ]"
+                                        enabled: !appController.busy
+                                                 && appController.radioDetected
+                                                 && portBox.count > 0
+                                                 && portBox.currentValue === appController.detectedPort
+                                        onClicked: appController.readRawBackup(portBox.currentValue)
+                                        contentItem: Text {
+                                            text: backupButton.text
+                                            color: !backupButton.enabled ? window.muted : backupButton.hovered ? window.black : window.silverBright
+                                            font.family: "Consolas"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                        background: Rectangle {
+                                            color: backupButton.enabled && backupButton.hovered ? window.silver : window.panel
+                                            border.color: backupButton.enabled ? window.silver : window.line
+                                            border.width: 1
+                                        }
+                                    }
+
+                                    Button {
+                                        id: loadBackupButton
+                                        Layout.preferredWidth: 190
+                                        Layout.preferredHeight: 44
+                                        text: "[ LOAD LAST BACKUP ]"
+                                        enabled: !appController.busy
+                                        onClicked: {
+                                            appController.loadLatestBackup()
+                                            if (appController.channelsReady)
+                                                window.activePage = 2
+                                        }
+                                        contentItem: Text {
+                                            text: loadBackupButton.text
+                                            color: !loadBackupButton.enabled ? window.muted : loadBackupButton.hovered ? window.black : window.silverBright
+                                            font.family: "Consolas"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                        background: Rectangle {
+                                            color: loadBackupButton.enabled && loadBackupButton.hovered ? window.silver : window.panel
+                                            border.color: loadBackupButton.enabled ? window.lineStrong : window.line
+                                            border.width: 1
+                                        }
+                                    }
+
+                                    Text {
+                                        text: readingBackup ? "* BLOCK READ ACTIVE" : appController.channelsReady ? "+ CHANNEL IMAGE DECODED" : appController.backupReady ? "+ RAW IMAGE CAPTURED" : appController.radioDetected ? "+ PROBE PASSED" : "- LINK IDLE"
+                                        color: readingBackup ? window.amber : (appController.channelsReady || appController.backupReady || appController.radioDetected) ? window.green : window.silverDim
+                                        font.family: "Consolas"
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                        SequentialAnimation on opacity {
+                                            running: appController.busy
+                                            loops: Animation.Infinite
+                                            NumberAnimation { to: 0.25; duration: 320 }
+                                            NumberAnimation { to: 1.0; duration: 320 }
+                                        }
+                                    }
+
+                                    Item { Layout.fillWidth: true }
+                                    Text { text: portBox.count > 0 ? (portBox.currentValue + " / 115200 / 8N1") : "NO COM PORT"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
+                                    visible: readingBackup || appController.backupReady
+
+                                    Text { text: "READ>"; color: readingBackup ? window.amber : window.green; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
+
+                                    Rectangle {
+                                        id: progressTrack
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 16
+                                        color: window.black
+                                        border.color: window.lineStrong
+                                        border.width: 1
+
+                                        Rectangle {
+                                            x: 1
+                                            y: 1
+                                            height: parent.height - 2
+                                            width: Math.max(0, (parent.width - 2) * appController.readProgress / 100)
+                                            color: appController.backupReady ? window.green : window.amber
+                                        }
+                                    }
+
+                                    Text {
+                                        text: appController.readProgress.toString().padStart(3, "0") + "%"
+                                        color: appController.backupReady ? window.green : window.silver
+                                        font.family: "Consolas"
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 58
+                                    color: window.black
+                                    border.color: window.operationError ? window.red : appController.backupReady ? window.greenDim : appController.radioDetected ? window.greenDim : window.line
+                                    border.width: 1
+
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 12
+                                        anchors.rightMargin: 12
+                                        spacing: 10
+
+                                        Text {
+                                            text: window.operationError ? "ERR>" : appController.backupReady || appController.radioDetected ? "OK >" : "SYS>"
+                                            color: window.operationError ? window.red : appController.backupReady || appController.radioDetected ? window.green : window.amber
+                                            font.family: "Consolas"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                        }
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: appController.status
+                                            color: window.operationError ? window.red : appController.backupReady || appController.radioDetected ? window.green : window.silver
+                                            verticalAlignment: Text.AlignVCenter
+                                            elide: Text.ElideRight
+                                            font.family: "Consolas"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                        }
+                                        Text {
+                                            text: "_"
+                                            color: appController.busy ? window.amberBright : "transparent"
+                                            font.family: "Consolas"
+                                            font.pixelSize: 12
+                                            font.bold: true
+                                            SequentialAnimation on opacity {
+                                                running: appController.busy
+                                                loops: Animation.Infinite
+                                                NumberAnimation { to: 0; duration: 420 }
+                                                NumberAnimation { to: 1; duration: 420 }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
-                    }
 
-                    Item { Layout.preferredHeight: 10 }
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: appController.channelsReady ? 286 : appController.backupReady ? 264 : 226
+                            color: "#070809"
+                            border.color: window.line
+                            border.width: 1
+
+                            Text {
+                                text: "[ SESSION STATUS / PHASE 2 ]"
+                                color: window.silverBright
+                                font.family: "Consolas"
+                                font.pixelSize: 10
+                                font.bold: true
+                                x: 14
+                                y: -7
+                                leftPadding: 6
+                                rightPadding: 6
+                                Rectangle { anchors.fill: parent; anchors.margins: -2; color: window.black; z: -1 }
+                            }
+
+                            Column {
+                                anchors.fill: parent
+                                anchors.margins: 22
+                                anchors.topMargin: 28
+                                spacing: 9
+
+                                Text { text: "[OK]  NATIVE WIN32 SERIAL BACKEND ONLINE"; color: window.green; font.family: "Consolas"; font.pixelSize: 10 }
+                                Text { text: "[OK]  PSEARCH / PASSSTA / SYSINFO PROBE PATH PROVEN"; color: window.green; font.family: "Consolas"; font.pixelSize: 10 }
+                                Text { text: "[--]  WRITE-MEMORY API NOT IMPLEMENTED / RADIO WRITES LOCKED"; color: window.amber; font.family: "Consolas"; font.pixelSize: 10 }
+                                Text {
+                                    text: appController.backupReady
+                                          ? "[OK]  PROGRAM MODE + V-FRAME RANGE + 4KB READ PATH COMPLETED"
+                                          : "[--]  PROGRAM MODE + 4KB READ PATH AVAILABLE"
+                                    color: appController.backupReady ? window.green : window.silverDim
+                                    font.family: "Consolas"
+                                    font.pixelSize: 10
+                                }
+                                Text {
+                                    visible: appController.channelsReady
+                                    text: "[OK]  NATIVE CHANNEL DECODER // " + appController.channelCount + " RECORDS READY"
+                                    color: window.green
+                                    font.family: "Consolas"
+                                    font.pixelSize: 10
+                                }
+                                Text {
+                                    visible: appController.backupReady
+                                    width: parent.width
+                                    text: "BIN>  " + appController.backupPath
+                                    color: window.silver
+                                    elide: Text.ElideMiddle
+                                    font.family: "Consolas"
+                                    font.pixelSize: 9
+                                }
+                                Text {
+                                    visible: appController.backupReady && appController.backupManifestPath.length > 0
+                                    width: parent.width
+                                    text: "JSON> " + appController.backupManifestPath
+                                    color: window.silverDim
+                                    elide: Text.ElideMiddle
+                                    font.family: "Consolas"
+                                    font.pixelSize: 9
+                                }
+                                Text {
+                                    visible: appController.backupReady && appController.backupSha256.length > 0
+                                    text: "SHA>  " + appController.backupSha256.toUpperCase()
+                                    color: window.green
+                                    font.family: "Consolas"
+                                    font.pixelSize: 9
+                                }
+                                Text {
+                                    text: appController.channelsReady
+                                          ? "NEXT> OPEN CHANNELS // READ-ONLY NATIVE DATABASE READY"
+                                          : appController.backupReady
+                                            ? "NEXT> DECODE CHANNEL DATABASE FROM CAPTURED IMAGE"
+                                            : appController.radioDetected
+                                              ? "NEXT> EXECUTE RAW BACKUP OR LOAD LAST BACKUP"
+                                              : "NEXT> ESTABLISH A VALID DM-32UV LINK OR LOAD LAST BACKUP"
+                                    color: window.silverBright
+                                    font.family: "Consolas"
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                }
+                            }
+                        }
+
+                        Item { Layout.preferredHeight: 10 }
+                    }
+                }
+
+                ChannelsPage {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
                 }
             }
         }
@@ -603,8 +665,8 @@ ApplicationWindow {
                 spacing: 16
 
                 Text {
-                    text: appController.backupReady ? "[BACKUP]" : appController.radioDetected ? "[OK]" : window.operationError ? "[ERR]" : appController.busy ? "[RUN]" : "[IDLE]"
-                    color: appController.backupReady || appController.radioDetected ? window.green : window.operationError ? window.red : appController.busy ? window.amber : window.silverDim
+                    text: appController.channelsReady ? "[CHANNELS]" : appController.backupReady ? "[BACKUP]" : appController.radioDetected ? "[OK]" : window.operationError ? "[ERR]" : appController.busy ? "[RUN]" : "[IDLE]"
+                    color: appController.channelsReady || appController.backupReady || appController.radioDetected ? window.green : window.operationError ? window.red : appController.busy ? window.amber : window.silverDim
                     font.family: "Consolas"
                     font.pixelSize: 9
                     font.bold: true
@@ -617,7 +679,7 @@ ApplicationWindow {
                     elide: Text.ElideRight
                     Layout.fillWidth: true
                 }
-                Text { text: "KJ6YWD.NET // YWD-PLUG // DEV-WIN // M2"; color: window.silver; font.family: "Consolas"; font.pixelSize: 9 }
+                Text { text: "KJ6YWD.NET // YWD-PLUG // DEV-WIN // M2B"; color: window.silver; font.family: "Consolas"; font.pixelSize: 9 }
             }
         }
     }
