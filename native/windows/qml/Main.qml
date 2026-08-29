@@ -10,21 +10,26 @@ ApplicationWindow {
     height: 900
     minimumWidth: 1100
     minimumHeight: 700
-    visible: true
+    visible: false
     title: "YWD-Plug // Native Windows"
-    color: "#030301"
+    color: "#050607"
 
-    property color black: "#030301"
-    property color black2: "#070602"
-    property color panel: "#0a0802"
-    property color amber: "#ffb000"
-    property color amberBright: "#ffd166"
-    property color amberDim: "#8a5d00"
-    property color amberFaint: "#3b2800"
-    property color green: "#55ff77"
-    property color greenDim: "#1d6b2d"
-    property color red: "#ff4d4d"
-    property color muted: "#80642d"
+    property color black: "#050607"
+    property color black2: "#080a0b"
+    property color panel: "#0b0d0f"
+    property color panel2: "#0f1113"
+    property color silver: "#c7ccd1"
+    property color silverBright: "#eef0f2"
+    property color silverDim: "#747b82"
+    property color line: "#30353a"
+    property color lineStrong: "#51575d"
+    property color amber: "#d79a2b"
+    property color amberBright: "#f0b43c"
+    property color amberDim: "#74521c"
+    property color green: "#58d878"
+    property color greenDim: "#235d31"
+    property color red: "#e45c5c"
+    property color muted: "#676d73"
     property bool probeError: appController.status.indexOf("PROBE FAILED") === 0
 
     property string asciiBanner:
@@ -36,20 +41,15 @@ ApplicationWindow {
         + "    $$     $$      $$ $$$$$$$          $$       $$$$$$$$  $$$$$$$   $$$$$$"
 
     background: Item {
-        Rectangle {
-            anchors.fill: parent
-            color: window.black
-        }
-
-        // Very subtle CRT scan lines. Purely decorative; no input handling.
+        Rectangle { anchors.fill: parent; color: window.black }
         Repeater {
-            model: Math.ceil(window.height / 5)
+            model: Math.ceil(window.height / 6)
             Rectangle {
                 width: window.width
                 height: 1
-                y: index * 5
-                color: "#211500"
-                opacity: 0.14
+                y: index * 6
+                color: "#15181b"
+                opacity: 0.24
             }
         }
     }
@@ -58,14 +58,11 @@ ApplicationWindow {
         anchors.fill: parent
         spacing: 0
 
-        // -----------------------------------------------------------------
-        // TERMINAL HEADER
-        // -----------------------------------------------------------------
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 146
-            color: "#050402"
-            border.color: window.amberDim
+            color: "#070809"
+            border.color: window.line
             border.width: 1
 
             RowLayout {
@@ -78,7 +75,7 @@ ApplicationWindow {
 
                 Text {
                     text: window.asciiBanner
-                    color: window.amber
+                    color: window.silverBright
                     font.family: "Consolas"
                     font.pixelSize: 9
                     font.bold: true
@@ -92,7 +89,7 @@ ApplicationWindow {
                     Layout.fillHeight: true
                     Layout.topMargin: 8
                     Layout.bottomMargin: 8
-                    color: window.amberFaint
+                    color: window.line
                 }
 
                 ColumnLayout {
@@ -102,43 +99,33 @@ ApplicationWindow {
 
                     Text {
                         text: "YWD-PLUG / NATIVE WINDOWS"
-                        color: window.amberBright
+                        color: window.silverBright
                         font.family: "Consolas"
                         font.pixelSize: 16
                         font.bold: true
                     }
                     Text {
                         text: "RADIO PROGRAMMING WORKSTATION"
-                        color: window.amberDim
+                        color: window.silverDim
                         font.family: "Consolas"
                         font.pixelSize: 10
                         font.letterSpacing: 1.2
                     }
                     Item { Layout.preferredHeight: 5 }
-                    Text {
-                        text: "HOST    : WIN32 / x64"
-                        color: window.amber
-                        font.family: "Consolas"
-                        font.pixelSize: 10
-                    }
+                    Text { text: "HOST    : WIN32 / x64"; color: window.silver; font.family: "Consolas"; font.pixelSize: 10 }
                     Text {
                         text: "TARGET  : " + (appController.radioDetected ? appController.radioModel : "DM-32UV / DP570UV")
-                        color: appController.radioDetected ? window.green : window.amber
+                        color: appController.radioDetected ? window.green : window.silver
                         font.family: "Consolas"
                         font.pixelSize: 10
                     }
                     Text {
                         text: "PORT    : " + (appController.radioDetected ? appController.detectedPort : "UNBOUND")
-                        color: appController.radioDetected ? window.green : window.muted
+                        color: appController.radioDetected ? window.green : window.silverDim
                         font.family: "Consolas"
                         font.pixelSize: 10
                     }
-                    Text {
-                        text: "ACCESS  : READ-ONLY PROBE"
-                        color: window.amberDim
-                        font.family: "Consolas"
-                        font.pixelSize: 10
-                    }
+                    Text { text: "ACCESS  : READ-ONLY PROBE"; color: window.amber; font.family: "Consolas"; font.pixelSize: 10 }
                 }
 
                 StatusPill {
@@ -151,9 +138,6 @@ ApplicationWindow {
             }
         }
 
-        // -----------------------------------------------------------------
-        // BODY
-        // -----------------------------------------------------------------
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -162,8 +146,8 @@ ApplicationWindow {
             Rectangle {
                 Layout.preferredWidth: 224
                 Layout.fillHeight: true
-                color: "#050402"
-                border.color: window.amberFaint
+                color: "#070809"
+                border.color: window.line
                 border.width: 1
 
                 ColumnLayout {
@@ -173,7 +157,7 @@ ApplicationWindow {
 
                     Text {
                         text: "+--[ RADIO ]--------------------------------"
-                        color: window.amber
+                        color: window.silverDim
                         font.family: "Consolas"
                         font.pixelSize: 10
                         Layout.bottomMargin: 5
@@ -188,7 +172,7 @@ ApplicationWindow {
 
                     Text {
                         text: "+--[ CONFIG ]-------------------------------"
-                        color: window.amber
+                        color: window.silverDim
                         font.family: "Consolas"
                         font.pixelSize: 10
                         Layout.topMargin: 14
@@ -205,8 +189,8 @@ ApplicationWindow {
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 104
-                        color: "#070602"
-                        border.color: window.amberFaint
+                        color: window.black2
+                        border.color: window.line
                         border.width: 1
 
                         Column {
@@ -215,8 +199,8 @@ ApplicationWindow {
                             spacing: 5
 
                             Text { text: "SYSTEM> STATUS"; color: window.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
-                            Text { text: "BRANCH : dev-win"; color: window.muted; font.family: "Consolas"; font.pixelSize: 9 }
-                            Text { text: "PHASE  : milestone-1"; color: window.muted; font.family: "Consolas"; font.pixelSize: 9 }
+                            Text { text: "BRANCH : dev-win"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 9 }
+                            Text { text: "PHASE  : milestone-1"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 9 }
                             Text { text: "WRITE  : LOCKED"; color: window.green; font.family: "Consolas"; font.pixelSize: 9; font.bold: true }
                         }
                     }
@@ -246,43 +230,35 @@ ApplicationWindow {
 
                         Text {
                             text: "> RADIO CONNECTION"
-                            color: window.amberBright
+                            color: window.silverBright
                             font.family: "Consolas"
                             font.pixelSize: 21
                             font.bold: true
                         }
                         Item { Layout.fillWidth: true }
-                        Text {
-                            text: "SYS://RADIO/CONNECTION"
-                            color: window.amberDim
-                            font.family: "Consolas"
-                            font.pixelSize: 10
-                        }
+                        Text { text: "SYS://RADIO/CONNECTION"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
                     }
 
                     Text {
                         Layout.fillWidth: true
                         text: "Initialize the native Win32 serial transport and interrogate the selected radio. This stage issues PSEARCH, PASSSTA and SYSINFO only. PROGRAM mode remains hard-disabled."
                         wrapMode: Text.WordWrap
-                        color: "#ba8a2c"
+                        color: window.silverDim
                         font.family: "Consolas"
                         font.pixelSize: 11
                         lineHeight: 1.25
                     }
 
-                    // -----------------------------------------------------
-                    // SERIAL PANEL
-                    // -----------------------------------------------------
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 286
-                        color: "#050402"
-                        border.color: window.amberDim
+                        color: "#070809"
+                        border.color: window.lineStrong
                         border.width: 1
 
                         Text {
                             text: "[ SERIAL INTERFACE / WIN32 ]"
-                            color: window.amberBright
+                            color: window.silverBright
                             font.family: "Consolas"
                             font.pixelSize: 10
                             font.bold: true
@@ -290,13 +266,7 @@ ApplicationWindow {
                             y: -7
                             leftPadding: 6
                             rightPadding: 6
-
-                            Rectangle {
-                                anchors.fill: parent
-                                anchors.margins: -2
-                                color: window.black
-                                z: -1
-                            }
+                            Rectangle { anchors.fill: parent; anchors.margins: -2; color: window.black; z: -1 }
                         }
 
                         ColumnLayout {
@@ -305,12 +275,7 @@ ApplicationWindow {
                             anchors.topMargin: 28
                             spacing: 12
 
-                            Text {
-                                text: "PORT> SELECT DEVICE"
-                                color: window.amber
-                                font.family: "Consolas"
-                                font.pixelSize: 10
-                            }
+                            Text { text: "PORT> SELECT DEVICE"; color: window.amber; font.family: "Consolas"; font.pixelSize: 10 }
 
                             RowLayout {
                                 Layout.fillWidth: true
@@ -329,7 +294,7 @@ ApplicationWindow {
                                         leftPadding: 12
                                         rightPadding: 30
                                         text: "> " + portBox.displayText
-                                        color: portBox.enabled ? window.amberBright : window.amberFaint
+                                        color: portBox.enabled ? window.silverBright : window.muted
                                         verticalAlignment: Text.AlignVCenter
                                         elide: Text.ElideRight
                                         font.family: "Consolas"
@@ -347,8 +312,8 @@ ApplicationWindow {
                                     }
 
                                     background: Rectangle {
-                                        color: "#030301"
-                                        border.color: portBox.activeFocus ? window.amberBright : window.amberDim
+                                        color: window.black
+                                        border.color: portBox.activeFocus ? window.amber : window.lineStrong
                                         border.width: 1
                                     }
 
@@ -357,14 +322,12 @@ ApplicationWindow {
                                         height: 34
                                         contentItem: Text {
                                             text: "> " + modelData.label
-                                            color: highlighted ? "#030301" : window.amber
+                                            color: highlighted ? window.black : window.silver
                                             font.family: "Consolas"
                                             font.pixelSize: 10
                                             verticalAlignment: Text.AlignVCenter
                                         }
-                                        background: Rectangle {
-                                            color: highlighted ? window.amber : "#050402"
-                                        }
+                                        background: Rectangle { color: highlighted ? window.silver : window.panel }
                                     }
 
                                     popup: Popup {
@@ -372,7 +335,6 @@ ApplicationWindow {
                                         width: portBox.width
                                         implicitHeight: contentItem.implicitHeight
                                         padding: 1
-
                                         contentItem: ListView {
                                             clip: true
                                             implicitHeight: contentHeight
@@ -380,12 +342,7 @@ ApplicationWindow {
                                             currentIndex: portBox.highlightedIndex
                                             ScrollIndicator.vertical: ScrollIndicator { }
                                         }
-
-                                        background: Rectangle {
-                                            color: "#050402"
-                                            border.color: window.amberDim
-                                            border.width: 1
-                                        }
+                                        background: Rectangle { color: window.panel; border.color: window.lineStrong; border.width: 1 }
                                     }
                                 }
 
@@ -398,7 +355,7 @@ ApplicationWindow {
                                     onClicked: appController.refreshPorts()
                                     contentItem: Text {
                                         text: refreshButton.text
-                                        color: refreshButton.hovered ? "#030301" : window.amber
+                                        color: refreshButton.hovered ? window.black : window.silver
                                         font.family: "Consolas"
                                         font.pixelSize: 10
                                         font.bold: true
@@ -406,8 +363,8 @@ ApplicationWindow {
                                         verticalAlignment: Text.AlignVCenter
                                     }
                                     background: Rectangle {
-                                        color: refreshButton.hovered ? window.amber : "#050402"
-                                        border.color: window.amberDim
+                                        color: refreshButton.hovered ? window.silver : window.panel
+                                        border.color: refreshButton.hovered ? window.silverBright : window.lineStrong
                                         border.width: 1
                                     }
                                 }
@@ -426,7 +383,7 @@ ApplicationWindow {
                                     onClicked: appController.probePort(portBox.currentValue)
                                     contentItem: Text {
                                         text: probeButton.text
-                                        color: !probeButton.enabled ? "#5c3d00" : probeButton.hovered ? "#030301" : window.amberBright
+                                        color: !probeButton.enabled ? window.muted : probeButton.hovered ? window.black : window.amberBright
                                         font.family: "Consolas"
                                         font.pixelSize: 11
                                         font.bold: true
@@ -434,19 +391,18 @@ ApplicationWindow {
                                         verticalAlignment: Text.AlignVCenter
                                     }
                                     background: Rectangle {
-                                        color: probeButton.enabled && probeButton.hovered ? window.amber : "#050402"
-                                        border.color: probeButton.enabled ? window.amber : window.amberFaint
+                                        color: probeButton.enabled && probeButton.hovered ? window.amber : window.panel
+                                        border.color: probeButton.enabled ? window.amber : window.line
                                         border.width: 1
                                     }
                                 }
 
                                 Text {
                                     text: appController.busy ? "* SERIAL ACTIVITY" : appController.radioDetected ? "+ LINK ESTABLISHED" : "- LINK IDLE"
-                                    color: appController.busy ? window.amber : appController.radioDetected ? window.green : window.muted
+                                    color: appController.busy ? window.amber : appController.radioDetected ? window.green : window.silverDim
                                     font.family: "Consolas"
                                     font.pixelSize: 10
                                     font.bold: true
-
                                     SequentialAnimation on opacity {
                                         running: appController.busy
                                         loops: Animation.Infinite
@@ -456,20 +412,14 @@ ApplicationWindow {
                                 }
 
                                 Item { Layout.fillWidth: true }
-
-                                Text {
-                                    text: portBox.count > 0 ? (portBox.currentValue + " / 115200 / 8N1") : "NO COM PORT"
-                                    color: window.amberDim
-                                    font.family: "Consolas"
-                                    font.pixelSize: 10
-                                }
+                                Text { text: portBox.count > 0 ? (portBox.currentValue + " / 115200 / 8N1") : "NO COM PORT"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
                             }
 
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 58
-                                color: "#020201"
-                                border.color: window.probeError ? window.red : appController.radioDetected ? window.greenDim : window.amberFaint
+                                color: window.black
+                                border.color: window.probeError ? window.red : appController.radioDetected ? window.greenDim : window.line
                                 border.width: 1
 
                                 RowLayout {
@@ -488,7 +438,7 @@ ApplicationWindow {
                                     Text {
                                         Layout.fillWidth: true
                                         text: appController.status
-                                        color: window.probeError ? window.red : appController.radioDetected ? window.green : window.amber
+                                        color: window.probeError ? window.red : appController.radioDetected ? window.green : window.silver
                                         verticalAlignment: Text.AlignVCenter
                                         elide: Text.ElideRight
                                         font.family: "Consolas"
@@ -513,19 +463,16 @@ ApplicationWindow {
                         }
                     }
 
-                    // -----------------------------------------------------
-                    // SESSION / DIAGNOSTIC PANEL
-                    // -----------------------------------------------------
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 218
-                        color: "#050402"
-                        border.color: window.amberFaint
+                        color: "#070809"
+                        border.color: window.line
                         border.width: 1
 
                         Text {
                             text: "[ SESSION STATUS ]"
-                            color: window.amberBright
+                            color: window.silverBright
                             font.family: "Consolas"
                             font.pixelSize: 10
                             font.bold: true
@@ -551,7 +498,7 @@ ApplicationWindow {
                                       : window.probeError
                                         ? "[!!]  LAST PROBE FAILED -- REVIEW STATUS ABOVE"
                                         : "[--]  AWAITING RADIO PROBE"
-                                color: appController.radioDetected ? window.green : window.probeError ? window.red : window.amberDim
+                                color: appController.radioDetected ? window.green : window.probeError ? window.red : window.silverDim
                                 font.family: "Consolas"
                                 font.pixelSize: 10
                             }
@@ -559,7 +506,7 @@ ApplicationWindow {
                                 text: appController.radioDetected
                                       ? "NEXT> PORT PROGRAM-MODE ENTRY + BLOCK-SAFE READ PATH"
                                       : "NEXT> ESTABLISH A VALID DM-32UV LINK"
-                                color: window.amberBright
+                                color: window.silverBright
                                 font.family: "Consolas"
                                 font.pixelSize: 10
                                 font.bold: true
@@ -572,14 +519,11 @@ ApplicationWindow {
             }
         }
 
-        // -----------------------------------------------------------------
-        // TERMINAL STATUS BAR
-        // -----------------------------------------------------------------
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 34
-            color: "#020201"
-            border.color: window.amberDim
+            color: window.black
+            border.color: window.line
             border.width: 1
 
             RowLayout {
@@ -590,26 +534,26 @@ ApplicationWindow {
 
                 Text {
                     text: appController.radioDetected ? "[OK]" : window.probeError ? "[ERR]" : appController.busy ? "[RUN]" : "[IDLE]"
-                    color: appController.radioDetected ? window.green : window.probeError ? window.red : window.amber
+                    color: appController.radioDetected ? window.green : window.probeError ? window.red : appController.busy ? window.amber : window.silverDim
                     font.family: "Consolas"
                     font.pixelSize: 9
                     font.bold: true
                 }
                 Text {
                     text: appController.status
-                    color: window.amberDim
+                    color: window.silverDim
                     font.family: "Consolas"
                     font.pixelSize: 9
                     elide: Text.ElideRight
                     Layout.fillWidth: true
                 }
-                Text {
-                    text: "KJ6YWD.NET // YWD-PLUG // DEV-WIN"
-                    color: window.amber
-                    font.family: "Consolas"
-                    font.pixelSize: 9
-                }
+                Text { text: "KJ6YWD.NET // YWD-PLUG // DEV-WIN"; color: window.silver; font.family: "Consolas"; font.pixelSize: 9 }
             }
         }
+    }
+
+    SplashWindow {
+        id: startupSplash
+        onFinished: windowState.showRestored()
     }
 }
