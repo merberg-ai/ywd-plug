@@ -13,7 +13,7 @@ Button {
 
     contentItem: Text {
         text: (control.active ? "> " : "  ") + control.indexText + "  " + control.text.toUpperCase()
-        color: !control.enabled ? "#4a3610" : control.active ? "#ffd166" : control.hovered ? "#ffb000" : "#a87818"
+        color: !control.enabled ? "#3f4449" : control.active ? "#f0b43c" : control.hovered ? "#d9dde1" : "#8a9096"
         font.family: "Consolas"
         font.pixelSize: 12
         font.bold: control.active
@@ -22,9 +22,9 @@ Button {
 
     background: Rectangle {
         radius: 0
-        color: control.active ? "#171004" : control.hovered ? "#100b02" : "transparent"
-        border.width: control.active ? 1 : control.hovered ? 1 : 0
-        border.color: control.active ? "#ffb000" : "#5c3d00"
+        color: control.active ? "#11100c" : control.hovered ? "#0d0f11" : "transparent"
+        border.width: control.active || control.hovered ? 1 : 0
+        border.color: control.active ? "#d79a2b" : "#3b4045"
 
         Rectangle {
             visible: control.active
@@ -32,7 +32,7 @@ Button {
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            color: "#ffd166"
+            color: "#f0b43c"
         }
     }
 }
