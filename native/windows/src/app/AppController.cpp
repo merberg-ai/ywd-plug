@@ -1,11 +1,13 @@
 #include "AppController.h"
 
+#include "radios/dm32uv/DM32ChannelDecoder.h"
 #include "serial/WinSerialPort.h"
 
 #include <QDir>
 #include <QMetaObject>
 #include <QPointer>
 #include <QStandardPaths>
+#include <QVariantMap>
 #include <QtConcurrent/QtConcurrentRun>
 
 AppController::AppController(QObject *parent)
@@ -39,6 +41,7 @@ AppController::AppController(QObject *parent)
 
         if (!result.ok) {
             m_backupReady = false;
+            clearChannelState();
             setStatus(QStringLiteral("RAW BACKUP FAILED // %1").arg(result.error));
             emit backupChanged();
             return;
@@ -52,10 +55,46 @@ AppController::AppController(QObject *parent)
         m_backupManifestPath = result.manifestPath;
         m_backupSha256 = result.sha256;
         setReadProgress(100);
-        setStatus(
-            QStringLiteral("RAW BACKUP COMPLETE // %1 BLOCKS // SHA256 %2")
-                .arg(result.blockCount)
-                .arg(result.sha256.left(16).toUpper()));
+
+        const auto decoded = DM32ChannelDecoder::decodeFile(result.backupPath);
+        if (decoded.ok) {
+            QVariantList channels;
+            channels.reserve(decoded.channels.size());
+
+            for (const DM32ChannelInfo &channel : decoded.channels) {
+                QVariantMap item;
+                item.insert(QStringLiteral("number"), channel.number);
+                item.insert(QStringLiteral("name"), channel.name);
+                item.insert(QStringLiteral("rxFrequency"), channel.rxFrequency);
+                item.insert(QStringLiteral("txFrequency"), channel.txFrequency);
+                item.insert(QStringLiteral("txDisabled"), channel.txDisabled);
+                item.insert(QStringLiteral("mode"), channel.mode);
+                item.insert(QStringLiteral("power"), channel.power);
+                item.insert(QStringLiteral("bandwidth"), channel.bandwidth);
+                item.insert(QStringLiteral("scanAdd"), channel.scanAdd);
+                item.insert(QStringLiteral("scanListId"), channel.scanListId);
+                item.insert(QStringLiteral("colorCode"), channel.colorCode);
+                item.insert(QStringLiteral("timeSlot"), channel.timeSlot);
+                item.insert(QStringLiteral("rxGroupListId"), channel.rxGroupListId);
+                item.insert(QStringLiteral("txContactIndex"), channel.txContactIndex);
+                item.insert(QStringLiteral("txContactDigital"), channel.txContactDigital);
+                channels.push_back(item);
+            }
+
+            m_channels = channels;
+            m_channelCount = decoded.channelCount;
+            m_channelsReady = true;
+            emit channelsChanged();
+
+            setStatus(
+                QStringLiteral("RAW BACKUP COMPLETE // %1 CHANNELS DECODED // SHA256 %2")
+                    .arg(decoded.channelCount)
+                    .arg(result.sha256.left(16).toUpper()));
+        } else {
+            clearChannelState();
+            setStatus(QStringLiteral("RAW BACKUP COMPLETE // CHANNEL DECODE FAILED // %1").arg(decoded.error));
+        }
+
         emit radioChanged();
         emit backupChanged();
     });
@@ -233,8 +272,22 @@ void AppController::clearBackupState()
     m_backupPath.clear();
     m_backupManifestPath.clear();
     m_backupSha256.clear();
+    clearChannelState();
 
     if (changed) {
         emit backupChanged();
+    }
+}
+
+void AppController::clearChannelState()
+{
+    const bool changed = m_channelsReady || m_channelCount != 0 || !m_channels.isEmpty();
+
+    m_channels.clear();
+    m_channelCount = 0;
+    m_channelsReady = false;
+
+    if (changed) {
+        emit channelsChanged();
     }
 }
