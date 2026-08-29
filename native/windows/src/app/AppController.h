@@ -21,6 +21,9 @@ class AppController final : public QObject
     Q_PROPERTY(QString backupPath READ backupPath NOTIFY backupChanged)
     Q_PROPERTY(QString backupManifestPath READ backupManifestPath NOTIFY backupChanged)
     Q_PROPERTY(QString backupSha256 READ backupSha256 NOTIFY backupChanged)
+    Q_PROPERTY(QVariantList channels READ channels NOTIFY channelsChanged)
+    Q_PROPERTY(int channelCount READ channelCount NOTIFY channelsChanged)
+    Q_PROPERTY(bool channelsReady READ channelsReady NOTIFY channelsChanged)
 
 public:
     explicit AppController(QObject *parent = nullptr);
@@ -37,6 +40,9 @@ public:
     [[nodiscard]] QString backupPath() const { return m_backupPath; }
     [[nodiscard]] QString backupManifestPath() const { return m_backupManifestPath; }
     [[nodiscard]] QString backupSha256() const { return m_backupSha256; }
+    [[nodiscard]] QVariantList channels() const { return m_channels; }
+    [[nodiscard]] int channelCount() const { return m_channelCount; }
+    [[nodiscard]] bool channelsReady() const { return m_channelsReady; }
 
     Q_INVOKABLE void refreshPorts();
     Q_INVOKABLE void probePort(const QString &portName);
@@ -51,6 +57,7 @@ signals:
     void readProgressChanged();
     void operationChanged();
     void backupChanged();
+    void channelsChanged();
 
 private:
     void setStatus(const QString &status);
@@ -58,8 +65,10 @@ private:
     void setReadProgress(int progress);
     void setOperation(const QString &operation);
     void clearBackupState();
+    void clearChannelState();
 
     QVariantList m_ports;
+    QVariantList m_channels;
     QString m_status {QStringLiteral("READY // SELECT A COM PORT")};
     QString m_radioModel;
     QString m_detectedPort;
@@ -70,7 +79,9 @@ private:
     bool m_busy {false};
     bool m_radioDetected {false};
     bool m_backupReady {false};
+    bool m_channelsReady {false};
     int m_readProgress {0};
+    int m_channelCount {0};
     QFutureWatcher<DM32ProbeResult> m_probeWatcher;
     QFutureWatcher<DM32BackupResult> m_backupWatcher;
 };
