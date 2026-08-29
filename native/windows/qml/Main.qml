@@ -35,6 +35,7 @@ ApplicationWindow {
     property bool operationError: appController.status.indexOf("FAILED") >= 0
                                   || appController.status.indexOf("BLOCKED") >= 0
                                   || appController.status.indexOf("NO SERIAL") >= 0
+    property bool readingRadio: appController.busy && appController.operation === "read"
     property bool readingBackup: appController.busy && appController.operation === "backup"
     property bool probing: appController.busy && appController.operation === "probe"
 
@@ -136,9 +137,9 @@ ApplicationWindow {
 
                 StatusPill {
                     Layout.alignment: Qt.AlignTop | Qt.AlignRight
-                    text: readingBackup ? "READING" : probing ? "PROBING" : operationError ? "FAULT" : appController.channelsReady ? "CHANNELS OK" : appController.backupReady ? "BACKUP OK" : appController.radioDetected ? "LINK OK" : "STANDBY"
+                    text: readingRadio ? "FAST READ" : readingBackup ? "BACKUP" : probing ? "PROBING" : operationError ? "FAULT" : appController.liveReadReady ? "LIVE READ OK" : appController.channelsReady ? "CHANNELS OK" : appController.backupReady ? "BACKUP OK" : appController.radioDetected ? "LINK OK" : "STANDBY"
                     busy: appController.busy
-                    good: appController.channelsReady || appController.backupReady || appController.radioDetected
+                    good: appController.liveReadReady || appController.channelsReady || appController.backupReady || appController.radioDetected
                     error: window.operationError
                 }
             }
@@ -206,8 +207,8 @@ ApplicationWindow {
 
                             Text { text: "SYSTEM> STATUS"; color: window.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
                             Text { text: "BRANCH : dev-win"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 9 }
-                            Text { text: "PHASE  : milestone-2b"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 9 }
-                            Text { text: "READ   : " + (appController.backupReady ? "CAPTURED" : "ARMED"); color: appController.backupReady ? window.green : window.silverDim; font.family: "Consolas"; font.pixelSize: 9; font.bold: true }
+                            Text { text: "PHASE  : milestone-3"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 9 }
+                            Text { text: "READ   : " + (appController.liveReadReady ? "SELECTIVE" : appController.backupReady ? "CAPTURED" : "ARMED"); color: appController.liveReadReady || appController.backupReady ? window.green : window.silverDim; font.family: "Consolas"; font.pixelSize: 9; font.bold: true }
                             Text { text: "CHAN   : " + (appController.channelsReady ? appController.channelCount : "--"); color: appController.channelsReady ? window.green : window.silverDim; font.family: "Consolas"; font.pixelSize: 9; font.bold: true }
                             Text { text: "WRITE  : LOCKED"; color: window.green; font.family: "Consolas"; font.pixelSize: 9; font.bold: true }
                         }
@@ -240,14 +241,14 @@ ApplicationWindow {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 10
-                            Text { text: "> RADIO CONNECTION / RAW BACKUP"; color: window.silverBright; font.family: "Consolas"; font.pixelSize: 21; font.bold: true }
+                            Text { text: "> RADIO CONNECTION / SELECTIVE READ"; color: window.silverBright; font.family: "Consolas"; font.pixelSize: 21; font.bold: true }
                             Item { Layout.fillWidth: true }
                             Text { text: "SYS://RADIO/READ"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
                         }
 
                         Text {
                             Layout.fillWidth: true
-                            text: "Phase 2 keeps radio writes locked. First probe the selected COM port. RAW BACKUP then repeats the handshake, reads firmware and V-frame 0x0A, validates the radio-reported memory range, enters PROGRAM mode, and reads that range in 4096-byte blocks. LOAD LAST BACKUP decodes the newest saved image without touching the radio."
+                            text: "Phase 3 adds the normal READ RADIO path. It discovers the 4KB map by reading only each block metadata byte, reads the channel count, then fetches only required channel and TX-contact blocks. RAW BACKUP remains the exhaustive 800 KiB safety/diagnostic capture. Radio writes remain locked."
                             wrapMode: Text.WordWrap
                             color: window.silverDim
                             font.family: "Consolas"
@@ -257,7 +258,7 @@ ApplicationWindow {
 
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 388
+                            Layout.preferredHeight: 410
                             color: "#070809"
                             border.color: window.lineStrong
                             border.width: 1
@@ -382,9 +383,9 @@ ApplicationWindow {
 
                                     Button {
                                         id: probeButton
-                                        Layout.preferredWidth: 170
+                                        Layout.preferredWidth: 150
                                         Layout.preferredHeight: 44
-                                        text: probing ? "[ PROBING... ]" : "[ EXECUTE PROBE ]"
+                                        text: probing ? "[ PROBING... ]" : "[ PROBE ]"
                                         enabled: !appController.busy && portBox.count > 0
                                         onClicked: appController.probePort(portBox.currentValue)
                                         contentItem: Text {
@@ -404,10 +405,33 @@ ApplicationWindow {
                                     }
 
                                     Button {
-                                        id: backupButton
+                                        id: readRadioButton
                                         Layout.preferredWidth: 180
                                         Layout.preferredHeight: 44
-                                        text: readingBackup ? "[ READING " + appController.readProgress + "% ]" : "[ RAW BACKUP ]"
+                                        text: readingRadio ? "[ READ " + appController.readProgress + "% ]" : "[ READ RADIO ]"
+                                        enabled: !appController.busy && portBox.count > 0
+                                        onClicked: appController.readRadio(portBox.currentValue)
+                                        contentItem: Text {
+                                            text: readRadioButton.text
+                                            color: !readRadioButton.enabled ? window.muted : readRadioButton.hovered ? window.black : window.green
+                                            font.family: "Consolas"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                        background: Rectangle {
+                                            color: readRadioButton.enabled && readRadioButton.hovered ? window.green : window.panel
+                                            border.color: readRadioButton.enabled ? window.greenDim : window.line
+                                            border.width: 1
+                                        }
+                                    }
+
+                                    Button {
+                                        id: backupButton
+                                        Layout.preferredWidth: 170
+                                        Layout.preferredHeight: 44
+                                        text: readingBackup ? "[ BACKUP " + appController.readProgress + "% ]" : "[ RAW BACKUP ]"
                                         enabled: !appController.busy
                                                  && appController.radioDetected
                                                  && portBox.count > 0
@@ -431,9 +455,9 @@ ApplicationWindow {
 
                                     Button {
                                         id: loadBackupButton
-                                        Layout.preferredWidth: 190
+                                        Layout.preferredWidth: 185
                                         Layout.preferredHeight: 44
-                                        text: "[ LOAD LAST BACKUP ]"
+                                        text: "[ LOAD BACKUP ]"
                                         enabled: !appController.busy
                                         onClicked: {
                                             appController.loadLatestBackup()
@@ -457,8 +481,8 @@ ApplicationWindow {
                                     }
 
                                     Text {
-                                        text: readingBackup ? "* BLOCK READ ACTIVE" : appController.channelsReady ? "+ CHANNEL IMAGE DECODED" : appController.backupReady ? "+ RAW IMAGE CAPTURED" : appController.radioDetected ? "+ PROBE PASSED" : "- LINK IDLE"
-                                        color: readingBackup ? window.amber : (appController.channelsReady || appController.backupReady || appController.radioDetected) ? window.green : window.silverDim
+                                        text: readingRadio ? "* SELECTIVE READ ACTIVE" : readingBackup ? "* FULL BLOCK READ ACTIVE" : appController.liveReadReady ? "+ LIVE CHANNEL DATABASE" : appController.channelsReady ? "+ CHANNEL IMAGE DECODED" : appController.backupReady ? "+ RAW IMAGE CAPTURED" : appController.radioDetected ? "+ PROBE PASSED" : "- LINK IDLE"
+                                        color: readingRadio || readingBackup ? window.amber : (appController.liveReadReady || appController.channelsReady || appController.backupReady || appController.radioDetected) ? window.green : window.silverDim
                                         font.family: "Consolas"
                                         font.pixelSize: 10
                                         font.bold: true
@@ -477,9 +501,9 @@ ApplicationWindow {
                                 RowLayout {
                                     Layout.fillWidth: true
                                     spacing: 10
-                                    visible: readingBackup || appController.backupReady
+                                    visible: readingRadio || readingBackup || appController.liveReadReady || appController.backupReady
 
-                                    Text { text: "READ>"; color: readingBackup ? window.amber : window.green; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
+                                    Text { text: "READ>"; color: readingRadio || readingBackup ? window.amber : window.green; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
 
                                     Rectangle {
                                         id: progressTrack
@@ -494,13 +518,13 @@ ApplicationWindow {
                                             y: 1
                                             height: parent.height - 2
                                             width: Math.max(0, (parent.width - 2) * appController.readProgress / 100)
-                                            color: appController.backupReady ? window.green : window.amber
+                                            color: appController.liveReadReady || appController.backupReady ? window.green : window.amber
                                         }
                                     }
 
                                     Text {
                                         text: appController.readProgress.toString().padStart(3, "0") + "%"
-                                        color: appController.backupReady ? window.green : window.silver
+                                        color: appController.liveReadReady || appController.backupReady ? window.green : window.silver
                                         font.family: "Consolas"
                                         font.pixelSize: 10
                                         font.bold: true
@@ -511,7 +535,7 @@ ApplicationWindow {
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 58
                                     color: window.black
-                                    border.color: window.operationError ? window.red : appController.backupReady ? window.greenDim : appController.radioDetected ? window.greenDim : window.line
+                                    border.color: window.operationError ? window.red : appController.liveReadReady || appController.backupReady || appController.radioDetected ? window.greenDim : window.line
                                     border.width: 1
 
                                     RowLayout {
@@ -521,8 +545,8 @@ ApplicationWindow {
                                         spacing: 10
 
                                         Text {
-                                            text: window.operationError ? "ERR>" : appController.backupReady || appController.radioDetected ? "OK >" : "SYS>"
-                                            color: window.operationError ? window.red : appController.backupReady || appController.radioDetected ? window.green : window.amber
+                                            text: window.operationError ? "ERR>" : appController.liveReadReady || appController.backupReady || appController.radioDetected ? "OK >" : "SYS>"
+                                            color: window.operationError ? window.red : appController.liveReadReady || appController.backupReady || appController.radioDetected ? window.green : window.amber
                                             font.family: "Consolas"
                                             font.pixelSize: 10
                                             font.bold: true
@@ -530,7 +554,7 @@ ApplicationWindow {
                                         Text {
                                             Layout.fillWidth: true
                                             text: appController.status
-                                            color: window.operationError ? window.red : appController.backupReady || appController.radioDetected ? window.green : window.silver
+                                            color: window.operationError ? window.red : appController.liveReadReady || appController.backupReady || appController.radioDetected ? window.green : window.silver
                                             verticalAlignment: Text.AlignVCenter
                                             elide: Text.ElideRight
                                             font.family: "Consolas"
@@ -557,13 +581,13 @@ ApplicationWindow {
 
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: appController.channelsReady ? 286 : appController.backupReady ? 264 : 226
+                            Layout.preferredHeight: appController.liveReadReady ? 304 : appController.channelsReady ? 286 : appController.backupReady ? 264 : 236
                             color: "#070809"
                             border.color: window.line
                             border.width: 1
 
                             Text {
-                                text: "[ SESSION STATUS / PHASE 2 ]"
+                                text: "[ SESSION STATUS / PHASE 3 ]"
                                 color: window.silverBright
                                 font.family: "Consolas"
                                 font.pixelSize: 10
@@ -582,13 +606,13 @@ ApplicationWindow {
                                 spacing: 9
 
                                 Text { text: "[OK]  NATIVE WIN32 SERIAL BACKEND ONLINE"; color: window.green; font.family: "Consolas"; font.pixelSize: 10 }
-                                Text { text: "[OK]  PSEARCH / PASSSTA / SYSINFO PROBE PATH PROVEN"; color: window.green; font.family: "Consolas"; font.pixelSize: 10 }
+                                Text { text: "[OK]  PSEARCH / PASSSTA / SYSINFO + PROGRAM READ PATH PROVEN"; color: window.green; font.family: "Consolas"; font.pixelSize: 10 }
                                 Text { text: "[--]  WRITE-MEMORY API NOT IMPLEMENTED / RADIO WRITES LOCKED"; color: window.amber; font.family: "Consolas"; font.pixelSize: 10 }
                                 Text {
-                                    text: appController.backupReady
-                                          ? "[OK]  PROGRAM MODE + V-FRAME RANGE + 4KB READ PATH COMPLETED"
-                                          : "[--]  PROGRAM MODE + 4KB READ PATH AVAILABLE"
-                                    color: appController.backupReady ? window.green : window.silverDim
+                                    text: appController.liveReadReady
+                                          ? "[OK]  SELECTIVE METADATA MAP + REQUIRED-BLOCK READ COMPLETED"
+                                          : "[--]  SELECTIVE METADATA MAP + REQUIRED-BLOCK READ READY FOR TEST"
+                                    color: appController.liveReadReady ? window.green : window.silverDim
                                     font.family: "Consolas"
                                     font.pixelSize: 10
                                 }
@@ -598,6 +622,13 @@ ApplicationWindow {
                                     color: window.green
                                     font.family: "Consolas"
                                     font.pixelSize: 10
+                                }
+                                Text {
+                                    visible: appController.liveReadReady
+                                    text: "FAST> MAP " + appController.lastReadDiscoveredBlocks + " BLOCKS // DATA " + appController.lastReadDataBlocks + " BLOCKS // " + appController.lastReadBytes + " BYTES // " + (appController.lastReadMs / 1000.0).toFixed(1) + "s"
+                                    color: window.green
+                                    font.family: "Consolas"
+                                    font.pixelSize: 9
                                 }
                                 Text {
                                     visible: appController.backupReady
@@ -625,13 +656,13 @@ ApplicationWindow {
                                     font.pixelSize: 9
                                 }
                                 Text {
-                                    text: appController.channelsReady
-                                          ? "NEXT> OPEN CHANNELS // READ-ONLY NATIVE DATABASE READY"
-                                          : appController.backupReady
-                                            ? "NEXT> DECODE CHANNEL DATABASE FROM CAPTURED IMAGE"
+                                    text: appController.liveReadReady
+                                          ? "NEXT> OPEN CHANNELS // COMPARE FAST READ AGAINST OFFLINE FIXTURE"
+                                          : appController.channelsReady
+                                            ? "NEXT> OPEN CHANNELS // READ-ONLY NATIVE DATABASE READY"
                                             : appController.radioDetected
-                                              ? "NEXT> EXECUTE RAW BACKUP OR LOAD LAST BACKUP"
-                                              : "NEXT> ESTABLISH A VALID DM-32UV LINK OR LOAD LAST BACKUP"
+                                              ? "NEXT> READ RADIO OR EXECUTE RAW BACKUP"
+                                              : "NEXT> SELECT COM PORT AND EXECUTE READ RADIO"
                                     color: window.silverBright
                                     font.family: "Consolas"
                                     font.pixelSize: 10
@@ -665,8 +696,8 @@ ApplicationWindow {
                 spacing: 16
 
                 Text {
-                    text: appController.channelsReady ? "[CHANNELS]" : appController.backupReady ? "[BACKUP]" : appController.radioDetected ? "[OK]" : window.operationError ? "[ERR]" : appController.busy ? "[RUN]" : "[IDLE]"
-                    color: appController.channelsReady || appController.backupReady || appController.radioDetected ? window.green : window.operationError ? window.red : appController.busy ? window.amber : window.silverDim
+                    text: appController.liveReadReady ? "[LIVE READ]" : appController.channelsReady ? "[CHANNELS]" : appController.backupReady ? "[BACKUP]" : appController.radioDetected ? "[OK]" : window.operationError ? "[ERR]" : appController.busy ? "[RUN]" : "[IDLE]"
+                    color: appController.liveReadReady || appController.channelsReady || appController.backupReady || appController.radioDetected ? window.green : window.operationError ? window.red : appController.busy ? window.amber : window.silverDim
                     font.family: "Consolas"
                     font.pixelSize: 9
                     font.bold: true
@@ -679,8 +710,16 @@ ApplicationWindow {
                     elide: Text.ElideRight
                     Layout.fillWidth: true
                 }
-                Text { text: "KJ6YWD.NET // YWD-PLUG // DEV-WIN // M2B"; color: window.silver; font.family: "Consolas"; font.pixelSize: 9 }
+                Text { text: "KJ6YWD.NET // YWD-PLUG // DEV-WIN // M3"; color: window.silver; font.family: "Consolas"; font.pixelSize: 9 }
             }
+        }
+    }
+
+    Connections {
+        target: appController
+        function onChannelsChanged() {
+            if (appController.liveReadReady && appController.channelsReady)
+                window.activePage = 2
         }
     }
 
