@@ -44,6 +44,7 @@ qt_add_qml_module(ywd_plug
     QML_FILES
         qml/Main.qml
         qml/SplashWindow.qml
+        qml/ChannelsPage.qml
         qml/components/NavButton.qml
         qml/components/StatusPill.qml
     RESOURCES
