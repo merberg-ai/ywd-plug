@@ -33,6 +33,8 @@ qt_add_executable(ywd_plug WIN32
     src/serial/WinSerialPort.h
     src/radios/dm32uv/DM32Connection.cpp
     src/radios/dm32uv/DM32Connection.h
+    src/radios/dm32uv/DM32ChannelDecoder.cpp
+    src/radios/dm32uv/DM32ChannelDecoder.h
     src/radios/dm32uv/DM32Constants.h
 )
 
