@@ -2,25 +2,35 @@
 
 Native Windows CPS for YWD-Plug, built with **C++20 + Qt 6/QML** on the `dev-win` branch.
 
-This is intentionally a real native application. It does not embed the browser YWD-Plug UI and it does not require Chromium/Web Serial at runtime.
+This is a real native application. It does not embed the browser YWD-Plug UI and it does not require Chromium/Web Serial at runtime.
 
-## Current milestone
+## Current phase
 
-Milestone 1 is deliberately read-only and boring in the best possible way:
+Milestone 1 is checkpointed at:
 
-1. Start a native Qt 6 application.
-2. Enumerate Windows COM ports with the native Win32 API.
-3. Open the selected port at 115200 8N1 using the native Win32 COM API.
-4. Perform the proven DM-32UV identification sequence:
-   - `PSEARCH`
-   - `PASSSTA`
-   - `SYSINFO`
-5. Confirm a `DP570`, `DM32`, or `DM-32` model response.
-6. Close the port.
+```text
+checkpoint/dev-win-m1
+```
 
-**This milestone does not enter PROGRAM mode and does not write radio memory.**
+That checkpoint proved the native application shell, Win32 serial transport, DM-32UV / DP570UV identification handshake, terminal-style UI, splash screen, and window-state persistence on real hardware.
 
-The handshake timing and validation are ported from the existing working browser DM-32UV driver so the native implementation starts from known behavior rather than a fresh reverse-engineering attempt.
+`dev-win` is now in **Phase 2: read-only PROGRAM-mode validation**.
+
+Phase 2 currently adds:
+
+1. The proven `PSEARCH` / `PASSSTA` / `SYSINFO` handshake.
+2. Firmware V-frame `0x01` read.
+3. Memory-layout V-frame `0x0A` read.
+4. Validation of the radio-reported config-memory range.
+5. PROGRAM-mode entry using the browser-proven sequence.
+6. Safe 4096-byte memory reads.
+7. A contiguous raw config-memory backup.
+8. SHA-256 hashing and a JSON manifest with block metadata.
+9. Live read progress in the terminal UI.
+
+**Native radio-memory writes remain unavailable.** There is no native `writeMemory()` implementation in this phase.
+
+See [`PHASE2-READBACK.md`](PHASE2-READBACK.md) for the hardware test procedure and success criteria.
 
 ## Stack
 
@@ -44,19 +54,37 @@ BUILD.cmd
 RUN.cmd
 ```
 
-When the first radio probe works, install the current-user build with:
+For the Phase-2 radio test:
+
+1. Select the correct COM port.
+2. Run **EXECUTE PROBE**.
+3. Confirm `RADIO DETECTED`.
+4. Run **RAW BACKUP**.
+5. Leave the radio connected until the read reaches 100%.
+
+Successful raw backups are stored under:
+
+```text
+%USERPROFILE%\Documents\YWD-Plug Backups\
+```
+
+Each read creates a `.bin` image and a `.json` manifest.
+
+## Install
+
+When the current build is ready to install for the current user:
 
 ```bat
 INSTALL.cmd
 ```
 
-`INSTALL.cmd` copies the staged application to:
+The application is copied to:
 
 ```text
 %LOCALAPPDATA%\Programs\YWD-Plug
 ```
 
-and creates Start Menu and Desktop shortcuts. Administrator access is not required.
+and Start Menu and Desktop shortcuts are created. Administrator access is not required.
 
 ## Toolchain setup
 
@@ -95,6 +123,8 @@ native/windows/
 ├── BUILD.cmd
 ├── INSTALL.cmd
 ├── RUN.cmd
+├── CHECKPOINT-M1.md
+├── PHASE2-READBACK.md
 ├── qml/
 ├── resources/
 └── src/
@@ -105,8 +135,15 @@ native/windows/
         └── dm32uv/
 ```
 
-## Next milestone
+## Next validation gate
 
-After the hardware probe is confirmed on a DM-32UV, port the programming-mode entry and safe memory block reads. Only after raw reads and binary comparisons are proven should native radio writes be enabled.
+Do not port native codeplug decoding or radio-memory writes merely because the first raw read completes.
 
-Longer term, the native application should preserve `.ywdplug` compatibility with the browser version so codeplugs can move between both front ends.
+The next gate is:
+
+1. Repeat the native read and prove stable output when the radio configuration is unchanged.
+2. Compare the native memory range and block data against the existing browser YWD-Plug read path.
+3. Confirm the same block metadata and byte content.
+4. Then port channel count and channel decoding into the native application.
+
+Radio-memory writes remain a later milestone after native read/decode/encode round-trip validation.
