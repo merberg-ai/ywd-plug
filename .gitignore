@@ -4,6 +4,12 @@ dist/
 coverage/
 .vite/
 
+# Native Windows build output
+native/windows/build/
+native/windows/dist/
+native/windows/.cache/
+native/windows/CMakeUserPresets.json
+
 # Environment/local overrides
 .env
 .env.*
