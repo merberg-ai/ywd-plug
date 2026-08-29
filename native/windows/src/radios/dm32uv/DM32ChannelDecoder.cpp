@@ -11,6 +11,7 @@ namespace {
 constexpr quint8 ChannelFirstMetadata = 0x12;
 constexpr quint8 ChannelLastMetadata = 0x41;
 constexpr quint8 TxContactLowMetadata = 0x42;
+constexpr quint8 TxContactHighMetadata = 0x43;
 constexpr qsizetype ChannelSize = 48;
 constexpr qsizetype FirstChannelOffset = 0x10;
 constexpr int ChannelsInFirstBlock = 84;
@@ -92,19 +93,11 @@ bool isDigitalMode(const QString &mode)
 {
     return mode == QStringLiteral("Digital") || mode == QStringLiteral("Fixed Digital");
 }
-}
 
-DM32ChannelDecodeResult DM32ChannelDecoder::decodeFile(const QString &path)
+DM32ChannelDecodeResult decodeImage(const QByteArray &image)
 {
     DM32ChannelDecodeResult result;
 
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) {
-        result.error = QStringLiteral("Could not open raw image: %1").arg(file.errorString());
-        return result;
-    }
-
-    const QByteArray image = file.readAll();
     if (image.isEmpty()) {
         result.error = QStringLiteral("Raw image is empty");
         return result;
@@ -118,6 +111,7 @@ DM32ChannelDecodeResult DM32ChannelDecoder::decodeFile(const QString &path)
 
     QVector<BlockRef> channelBlocks;
     qsizetype txContactLowOffset = -1;
+    qsizetype txContactHighOffset = -1;
 
     for (qsizetype blockOffset = 0;
          blockOffset + DM32Constants::BlockSize <= image.size();
@@ -128,6 +122,8 @@ DM32ChannelDecodeResult DM32ChannelDecoder::decodeFile(const QString &path)
             channelBlocks.push_back({metadata, blockOffset});
         } else if (metadata == TxContactLowMetadata) {
             txContactLowOffset = blockOffset;
+        } else if (metadata == TxContactHighMetadata) {
+            txContactHighOffset = blockOffset;
         }
     }
 
@@ -246,9 +242,18 @@ DM32ChannelDecodeResult DM32ChannelDecoder::decodeFile(const QString &path)
             channel.rxGroupListId = byteValue(record.at(0x1F)) & 0x3F;
         }
 
-        if (txContactLowOffset >= 0 && channelNumber <= 2047) {
-            const qsizetype contactOffset = txContactLowOffset
-                + static_cast<qsizetype>(channelNumber - 1) * 2;
+        qsizetype txContactBlockOffset = -1;
+        qsizetype txContactOffsetInBlock = -1;
+        if (channelNumber <= 2047 && txContactLowOffset >= 0) {
+            txContactBlockOffset = txContactLowOffset;
+            txContactOffsetInBlock = static_cast<qsizetype>(channelNumber - 1) * 2;
+        } else if (channelNumber >= 2048 && txContactHighOffset >= 0) {
+            txContactBlockOffset = txContactHighOffset;
+            txContactOffsetInBlock = static_cast<qsizetype>(channelNumber & 0x7FF) * 2;
+        }
+
+        if (txContactBlockOffset >= 0 && txContactOffsetInBlock >= 0) {
+            const qsizetype contactOffset = txContactBlockOffset + txContactOffsetInBlock;
             if (contactOffset + 1 < image.size()) {
                 const quint8 byte0 = byteValue(image.at(contactOffset));
                 const quint8 byte1 = byteValue(image.at(contactOffset + 1));
@@ -262,4 +267,55 @@ DM32ChannelDecodeResult DM32ChannelDecoder::decodeFile(const QString &path)
 
     result.ok = true;
     return result;
+}
+} // namespace
+
+DM32ChannelDecodeResult DM32ChannelDecoder::decodeFile(const QString &path)
+{
+    DM32ChannelDecodeResult result;
+
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        result.error = QStringLiteral("Could not open raw image: %1").arg(file.errorString());
+        return result;
+    }
+
+    return decodeImage(file.readAll());
+}
+
+DM32ChannelDecodeResult DM32ChannelDecoder::decodeBlocks(const QVector<DM32MemoryBlock> &blocks)
+{
+    DM32ChannelDecodeResult result;
+    if (blocks.isEmpty()) {
+        result.error = QStringLiteral("No selective memory blocks were supplied");
+        return result;
+    }
+
+    QByteArray image;
+    image.reserve(static_cast<qsizetype>(blocks.size()) * DM32Constants::BlockSize);
+
+    for (const DM32MemoryBlock &block : blocks) {
+        if (block.data.size() != DM32Constants::BlockSize) {
+            result.error = QStringLiteral("Selective block metadata 0x%1 at 0x%2 has %3 bytes; expected 4096")
+                               .arg(block.metadata, 2, 16, QLatin1Char('0'))
+                               .arg(block.address, 6, 16, QLatin1Char('0'))
+                               .arg(block.data.size())
+                               .toUpper();
+            return result;
+        }
+
+        const quint8 embeddedMetadata = byteValue(block.data.at(DM32Constants::BlockSize - 1));
+        if (embeddedMetadata != block.metadata) {
+            result.error = QStringLiteral("Selective block metadata mismatch at 0x%1: map=0x%2 data=0x%3")
+                               .arg(block.address, 6, 16, QLatin1Char('0'))
+                               .arg(block.metadata, 2, 16, QLatin1Char('0'))
+                               .arg(embeddedMetadata, 2, 16, QLatin1Char('0'))
+                               .toUpper();
+            return result;
+        }
+
+        image.append(block.data);
+    }
+
+    return decodeImage(image);
 }
