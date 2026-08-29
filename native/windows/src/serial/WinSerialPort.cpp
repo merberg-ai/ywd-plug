@@ -79,6 +79,7 @@ bool WinSerialPort::open(const QString &portName, qint32 baudRate)
 {
     close();
     m_error.clear();
+    m_firstWriteAfterOpen = true;
 
     const QString devicePath = QStringLiteral("\\\\.\\%1").arg(portName.trimmed());
     HANDLE handle = CreateFileW(
@@ -153,6 +154,7 @@ bool WinSerialPort::open(const QString &portName, qint32 baudRate)
 void WinSerialPort::close()
 {
     if (!m_handle) {
+        m_firstWriteAfterOpen = true;
         return;
     }
 
@@ -160,6 +162,7 @@ void WinSerialPort::close()
     PurgeComm(handle, PURGE_RXABORT | PURGE_RXCLEAR | PURGE_TXABORT | PURGE_TXCLEAR);
     CloseHandle(handle);
     m_handle = nullptr;
+    m_firstWriteAfterOpen = true;
 }
 
 bool WinSerialPort::clear()
@@ -186,6 +189,22 @@ bool WinSerialPort::writeAll(const QByteArray &data, int timeoutMs, QString &err
     }
 
     HANDLE handle = nativeHandle(m_handle);
+
+    // The DM-32UV can emit an unsolicited status frame shortly after the COM
+    // port opens. The protocol intentionally waits for the radio to settle
+    // before its first command, which gives that frame time to arrive after
+    // the initial open-time purge. Discard only stale RX bytes immediately
+    // before the first command of a new serial session. Later command/response
+    // traffic is left completely untouched.
+    if (m_firstWriteAfterOpen) {
+        if (PurgeComm(handle, PURGE_RXABORT | PURGE_RXCLEAR) == FALSE) {
+            setLastError(QStringLiteral("Could not clear stale serial input before first command"));
+            error = m_error;
+            return false;
+        }
+        m_firstWriteAfterOpen = false;
+    }
+
     if (!setTimeouts(handle, 100, static_cast<DWORD>(qMax(1, timeoutMs)))) {
         setLastError(QStringLiteral("Could not configure write timeout"));
         error = m_error;
