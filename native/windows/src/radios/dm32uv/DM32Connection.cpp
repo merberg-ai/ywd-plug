@@ -1,48 +1,11 @@
 #include "DM32Connection.h"
 
 #include "DM32Constants.h"
+#include "serial/WinSerialPort.h"
 
-#include <QElapsedTimer>
-#include <QSerialPort>
 #include <QThread>
 
 namespace {
-bool writeAll(QSerialPort &port, const QByteArray &data, QString &error)
-{
-    const auto queued = port.write(data);
-    if (queued != data.size()) {
-        error = QStringLiteral("Could not queue serial write: %1").arg(port.errorString());
-        return false;
-    }
-
-    if (!port.waitForBytesWritten(DM32Constants::RequestTimeoutMs)) {
-        error = QStringLiteral("Serial write timed out: %1").arg(port.errorString());
-        return false;
-    }
-    return true;
-}
-
-QByteArray readExact(QSerialPort &port, qsizetype count, int timeoutMs)
-{
-    QByteArray data;
-    QElapsedTimer timer;
-    timer.start();
-
-    while (data.size() < count && timer.elapsed() < timeoutMs) {
-        if (port.bytesAvailable() == 0) {
-            const int remaining = qMax(1, timeoutMs - static_cast<int>(timer.elapsed()));
-            port.waitForReadyRead(qMin(remaining, 250));
-        }
-
-        const auto chunk = port.read(count - data.size());
-        if (!chunk.isEmpty()) {
-            data.append(chunk);
-        }
-    }
-
-    return data;
-}
-
 QString toHex(const QByteArray &data)
 {
     return QString::fromLatin1(data.toHex(' ')).toUpper();
@@ -54,6 +17,23 @@ bool hasSupportedModel(const QString &model)
         || model.contains(QStringLiteral("DM32"), Qt::CaseInsensitive)
         || model.contains(QStringLiteral("DM-32"), Qt::CaseInsensitive);
 }
+
+QString shortReadError(const QString &stage, qsizetype expected, const QByteArray &received, const WinSerialPort &port)
+{
+    if (!port.errorString().isEmpty()) {
+        return QStringLiteral("%1 read failed: %2; received %3/%4 bytes [%5]")
+            .arg(stage, port.errorString())
+            .arg(received.size())
+            .arg(expected)
+            .arg(toHex(received));
+    }
+
+    return QStringLiteral("%1 timeout: expected %2 bytes, received %3 [%4]")
+        .arg(stage)
+        .arg(expected)
+        .arg(received.size())
+        .arg(toHex(received));
+}
 }
 
 DM32ProbeResult DM32Connection::probe(const QString &portName)
@@ -61,37 +41,31 @@ DM32ProbeResult DM32Connection::probe(const QString &portName)
     DM32ProbeResult result;
     result.portName = portName;
 
-    QSerialPort port;
-    port.setPortName(portName);
-    port.setBaudRate(DM32Constants::BaudRate);
-    port.setDataBits(QSerialPort::Data8);
-    port.setParity(QSerialPort::NoParity);
-    port.setStopBits(QSerialPort::OneStop);
-    port.setFlowControl(QSerialPort::NoFlowControl);
-
-    if (!port.open(QIODevice::ReadWrite)) {
-        result.error = QStringLiteral("Could not open %1: %2").arg(portName, port.errorString());
+    WinSerialPort port;
+    if (!port.open(portName, DM32Constants::BaudRate)) {
+        result.error = port.errorString();
         return result;
     }
 
     QThread::msleep(DM32Constants::InitDelayMs);
-    port.clear(QSerialPort::AllDirections);
+    if (!port.clear()) {
+        result.error = port.errorString();
+        return result;
+    }
     QThread::msleep(DM32Constants::ClearBufferDelayMs);
 
     QString ioError;
-    if (!writeAll(port, QByteArrayLiteral("PSEARCH"), ioError)) {
+    if (!port.writeAll(QByteArrayLiteral("PSEARCH"), DM32Constants::RequestTimeoutMs, ioError)) {
         result.error = ioError;
         return result;
     }
 
     QThread::msleep(DM32Constants::PsearchReadDelayMs);
-    const auto psearch = readExact(port, 8, DM32Constants::RequestTimeoutMs);
+    const auto psearch = port.readExact(8, DM32Constants::RequestTimeoutMs);
     result.psearchResponse = psearch;
 
     if (psearch.size() != 8) {
-        result.error = QStringLiteral("PSEARCH timeout: expected 8 bytes, received %1 [%2]")
-                           .arg(psearch.size())
-                           .arg(toHex(psearch));
+        result.error = shortReadError(QStringLiteral("PSEARCH"), 8, psearch, port);
         return result;
     }
 
@@ -110,27 +84,35 @@ DM32ProbeResult DM32Connection::probe(const QString &portName)
     }
 
     QThread::msleep(50);
-    if (!writeAll(port, QByteArrayLiteral("PASSSTA"), ioError)) {
+    if (!port.writeAll(QByteArrayLiteral("PASSSTA"), DM32Constants::RequestTimeoutMs, ioError)) {
         result.error = ioError;
         return result;
     }
     QThread::msleep(50);
 
-    const auto passsta = readExact(port, 3, DM32Constants::RequestTimeoutMs);
-    if (passsta.size() != 3 || static_cast<quint8>(passsta.at(0)) != 0x50) {
+    const auto passsta = port.readExact(3, DM32Constants::RequestTimeoutMs);
+    if (passsta.size() != 3) {
+        result.error = shortReadError(QStringLiteral("PASSSTA"), 3, passsta, port);
+        return result;
+    }
+    if (static_cast<quint8>(passsta.at(0)) != 0x50) {
         result.error = QStringLiteral("PASSSTA failed: [%1]").arg(toHex(passsta));
         return result;
     }
 
     QThread::msleep(50);
-    if (!writeAll(port, QByteArrayLiteral("SYSINFO"), ioError)) {
+    if (!port.writeAll(QByteArrayLiteral("SYSINFO"), DM32Constants::RequestTimeoutMs, ioError)) {
         result.error = ioError;
         return result;
     }
     QThread::msleep(50);
 
-    const auto sysinfo = readExact(port, 1, DM32Constants::RequestTimeoutMs);
-    if (sysinfo.size() != 1 || static_cast<quint8>(sysinfo.at(0)) != 0x06) {
+    const auto sysinfo = port.readExact(1, DM32Constants::RequestTimeoutMs);
+    if (sysinfo.size() != 1) {
+        result.error = shortReadError(QStringLiteral("SYSINFO"), 1, sysinfo, port);
+        return result;
+    }
+    if (static_cast<quint8>(sysinfo.at(0)) != 0x06) {
         result.error = QStringLiteral("SYSINFO failed: [%1]").arg(toHex(sysinfo));
         return result;
     }

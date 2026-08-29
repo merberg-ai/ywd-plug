@@ -1,17 +1,8 @@
 #include "AppController.h"
 
-#include <QSerialPortInfo>
-#include <QtConcurrent/QtConcurrentRun>
+#include "serial/WinSerialPort.h"
 
-namespace {
-QString hexId(quint16 value, bool present)
-{
-    if (!present) {
-        return QStringLiteral("----");
-    }
-    return QStringLiteral("%1").arg(value, 4, 16, QLatin1Char('0')).toUpper();
-}
-}
+#include <QtConcurrent/QtConcurrentRun>
 
 AppController::AppController(QObject *parent)
     : QObject(parent)
@@ -43,25 +34,15 @@ void AppController::refreshPorts()
 {
     QVariantList nextPorts;
 
-    for (const auto &info : QSerialPortInfo::availablePorts()) {
+    for (const QString &portName : WinSerialPort::availablePorts()) {
         QVariantMap item;
-        item.insert(QStringLiteral("name"), info.portName());
-        item.insert(QStringLiteral("description"), info.description());
-        item.insert(QStringLiteral("manufacturer"), info.manufacturer());
-        item.insert(QStringLiteral("serialNumber"), info.serialNumber());
-        item.insert(QStringLiteral("vendorId"), hexId(info.vendorIdentifier(), info.hasVendorIdentifier()));
-        item.insert(QStringLiteral("productId"), hexId(info.productIdentifier(), info.hasProductIdentifier()));
-
-        QString label = info.portName();
-        if (!info.description().isEmpty()) {
-            label += QStringLiteral(" — ") + info.description();
-        }
-        if (info.hasVendorIdentifier() || info.hasProductIdentifier()) {
-            label += QStringLiteral("  [%1:%2]")
-                         .arg(item.value(QStringLiteral("vendorId")).toString(),
-                              item.value(QStringLiteral("productId")).toString());
-        }
-        item.insert(QStringLiteral("label"), label);
+        item.insert(QStringLiteral("name"), portName);
+        item.insert(QStringLiteral("description"), QStringLiteral("Windows COM port"));
+        item.insert(QStringLiteral("manufacturer"), QString());
+        item.insert(QStringLiteral("serialNumber"), QString());
+        item.insert(QStringLiteral("vendorId"), QStringLiteral("----"));
+        item.insert(QStringLiteral("productId"), QStringLiteral("----"));
+        item.insert(QStringLiteral("label"), QStringLiteral("%1 — Windows COM port").arg(portName));
         nextPorts.push_back(item);
     }
 

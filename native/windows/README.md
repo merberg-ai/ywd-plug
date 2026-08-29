@@ -9,8 +9,8 @@ This is intentionally a real native application. It does not embed the browser Y
 Milestone 1 is deliberately read-only and boring in the best possible way:
 
 1. Start a native Qt 6 application.
-2. Enumerate Windows COM ports using `QSerialPortInfo`.
-3. Open the selected port at 115200 8N1.
+2. Enumerate Windows COM ports with the native Win32 API.
+3. Open the selected port at 115200 8N1 using the native Win32 COM API.
 4. Perform the proven DM-32UV identification sequence:
    - `PSEARCH`
    - `PASSSTA`
@@ -25,13 +25,14 @@ The handshake timing and validation are ported from the existing working browser
 ## Stack
 
 - C++20
-- Qt 6.8+
+- Qt 6.8+ Core / GUI / Quick / Quick Controls / Concurrent
 - Qt Quick / QML
-- Qt SerialPort
-- Qt Concurrent
+- Native Win32 COM transport (`CreateFile`, `SetCommState`, `ReadFile`, `WriteFile`)
 - CMake
 - Ninja
 - MSVC 2022 x64
+
+Qt SerialPort is intentionally **not required**. The Windows build owns its COM transport directly so a normal Qt MSVC desktop installation is enough.
 
 ## Easy path
 
@@ -75,7 +76,7 @@ To let the setup script install common command-line tools through winget when mi
 SETUP.cmd -InstallMissing
 ```
 
-Visual Studio C++ and Qt are intentionally not installed silently by the script. Qt should include an **MSVC 2022 64-bit** kit.
+Visual Studio C++ and Qt are intentionally not installed silently by the script. Qt should include an **MSVC 2022 64-bit** kit. The optional Qt SerialPort package is not needed.
 
 ## Build output
 
@@ -98,6 +99,8 @@ native/windows/
 ├── resources/
 └── src/
     ├── app/
+    ├── serial/
+    │   └── WinSerialPort.*
     └── radios/
         └── dm32uv/
 ```

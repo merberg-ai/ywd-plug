@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.24)
 
 project(YWDPlugNative VERSION 0.1.0 LANGUAGES CXX)
 
+if(NOT WIN32)
+    message(FATAL_ERROR "YWD-Plug Native currently targets Windows only.")
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -12,7 +16,6 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
     Gui
     Quick
     QuickControls2
-    SerialPort
     Concurrent
 )
 
@@ -22,6 +25,8 @@ qt_add_executable(ywd_plug WIN32
     src/main.cpp
     src/app/AppController.cpp
     src/app/AppController.h
+    src/serial/WinSerialPort.cpp
+    src/serial/WinSerialPort.h
     src/radios/dm32uv/DM32Connection.cpp
     src/radios/dm32uv/DM32Connection.h
     src/radios/dm32uv/DM32Constants.h
@@ -45,7 +50,6 @@ target_link_libraries(ywd_plug PRIVATE
     Qt6::Gui
     Qt6::Quick
     Qt6::QuickControls2
-    Qt6::SerialPort
     Qt6::Concurrent
 )
 
@@ -56,7 +60,7 @@ set_target_properties(ywd_plug PROPERTIES
 
 if(MSVC)
     target_compile_options(ywd_plug PRIVATE /W4 /permissive- /Zc:__cplusplus)
-    target_compile_definitions(ywd_plug PRIVATE _CRT_SECURE_NO_WARNINGS)
+    target_compile_definitions(ywd_plug PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 
 install(TARGETS ywd_plug
