@@ -6,6 +6,8 @@
 
 #include "radios/dm32uv/DM32Connection.h"
 
+struct DM32ChannelDecodeResult;
+
 class AppController final : public QObject
 {
     Q_OBJECT
@@ -24,6 +26,11 @@ class AppController final : public QObject
     Q_PROPERTY(QVariantList channels READ channels NOTIFY channelsChanged)
     Q_PROPERTY(int channelCount READ channelCount NOTIFY channelsChanged)
     Q_PROPERTY(bool channelsReady READ channelsReady NOTIFY channelsChanged)
+    Q_PROPERTY(bool liveReadReady READ liveReadReady NOTIFY readStatsChanged)
+    Q_PROPERTY(qint64 lastReadBytes READ lastReadBytes NOTIFY readStatsChanged)
+    Q_PROPERTY(qint64 lastReadMs READ lastReadMs NOTIFY readStatsChanged)
+    Q_PROPERTY(int lastReadDataBlocks READ lastReadDataBlocks NOTIFY readStatsChanged)
+    Q_PROPERTY(int lastReadDiscoveredBlocks READ lastReadDiscoveredBlocks NOTIFY readStatsChanged)
 
 public:
     explicit AppController(QObject *parent = nullptr);
@@ -43,9 +50,15 @@ public:
     [[nodiscard]] QVariantList channels() const { return m_channels; }
     [[nodiscard]] int channelCount() const { return m_channelCount; }
     [[nodiscard]] bool channelsReady() const { return m_channelsReady; }
+    [[nodiscard]] bool liveReadReady() const { return m_liveReadReady; }
+    [[nodiscard]] qint64 lastReadBytes() const { return m_lastReadBytes; }
+    [[nodiscard]] qint64 lastReadMs() const { return m_lastReadMs; }
+    [[nodiscard]] int lastReadDataBlocks() const { return m_lastReadDataBlocks; }
+    [[nodiscard]] int lastReadDiscoveredBlocks() const { return m_lastReadDiscoveredBlocks; }
 
     Q_INVOKABLE void refreshPorts();
     Q_INVOKABLE void probePort(const QString &portName);
+    Q_INVOKABLE void readRadio(const QString &portName);
     Q_INVOKABLE void readRawBackup(const QString &portName);
     Q_INVOKABLE void loadLatestBackup();
     Q_INVOKABLE void clearRadio();
@@ -59,6 +72,7 @@ signals:
     void operationChanged();
     void backupChanged();
     void channelsChanged();
+    void readStatsChanged();
 
 private:
     void setStatus(const QString &status);
@@ -67,6 +81,8 @@ private:
     void setOperation(const QString &operation);
     void clearBackupState();
     void clearChannelState();
+    void clearReadStats();
+    bool applyDecodedChannels(const DM32ChannelDecodeResult &decoded, QString &error);
     bool loadChannelsFromBackup(const QString &path, QString &error);
 
     QVariantList m_ports;
@@ -82,8 +98,14 @@ private:
     bool m_radioDetected {false};
     bool m_backupReady {false};
     bool m_channelsReady {false};
+    bool m_liveReadReady {false};
     int m_readProgress {0};
     int m_channelCount {0};
+    qint64 m_lastReadBytes {0};
+    qint64 m_lastReadMs {0};
+    int m_lastReadDataBlocks {0};
+    int m_lastReadDiscoveredBlocks {0};
     QFutureWatcher<DM32ProbeResult> m_probeWatcher;
+    QFutureWatcher<DM32SelectiveReadResult> m_selectiveReadWatcher;
     QFutureWatcher<DM32BackupResult> m_backupWatcher;
 };
