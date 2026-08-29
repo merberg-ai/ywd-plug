@@ -5,35 +5,34 @@ Button {
     id: control
 
     property bool active: false
+    property string indexText: "--"
 
-    implicitHeight: 42
-    leftPadding: 14
-    rightPadding: 14
+    implicitHeight: 38
+    leftPadding: 10
+    rightPadding: 10
 
     contentItem: Text {
-        text: control.text
-        color: control.active ? "#62e9ff" : control.hovered ? "#d8edf2" : "#87a8b1"
+        text: (control.active ? "> " : "  ") + control.indexText + "  " + control.text.toUpperCase()
+        color: !control.enabled ? "#4a3610" : control.active ? "#ffd166" : control.hovered ? "#ffb000" : "#a87818"
         font.family: "Consolas"
-        font.pixelSize: 13
+        font.pixelSize: 12
         font.bold: control.active
         verticalAlignment: Text.AlignVCenter
     }
 
     background: Rectangle {
-        radius: 8
-        color: control.active ? "#102934" : control.hovered ? "#0d2028" : "transparent"
-        border.width: control.active ? 1 : 0
-        border.color: "#2a6678"
+        radius: 0
+        color: control.active ? "#171004" : control.hovered ? "#100b02" : "transparent"
+        border.width: control.active ? 1 : control.hovered ? 1 : 0
+        border.color: control.active ? "#ffb000" : "#5c3d00"
 
         Rectangle {
             visible: control.active
-            width: 3
-            radius: 2
+            width: 2
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            anchors.margins: 7
-            color: "#62e9ff"
+            color: "#ffd166"
         }
     }
 }

@@ -25,6 +25,8 @@ qt_add_executable(ywd_plug WIN32
     src/main.cpp
     src/app/AppController.cpp
     src/app/AppController.h
+    src/app/WindowsChrome.cpp
+    src/app/WindowsChrome.h
     src/serial/WinSerialPort.cpp
     src/serial/WinSerialPort.h
     src/radios/dm32uv/DM32Connection.cpp
@@ -51,6 +53,7 @@ target_link_libraries(ywd_plug PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Concurrent
+    dwmapi
 )
 
 set_target_properties(ywd_plug PROPERTIES

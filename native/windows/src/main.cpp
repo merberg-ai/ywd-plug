@@ -2,8 +2,10 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
+#include <QWindow>
 
 #include "app/AppController.h"
+#include "app/WindowsChrome.h"
 
 int main(int argc, char *argv[])
 {
@@ -28,5 +30,12 @@ int main(int argc, char *argv[])
         Qt::QueuedConnection);
 
     engine.loadFromModule(QStringLiteral("YWDPlug"), QStringLiteral("Main"));
+
+    if (!engine.rootObjects().isEmpty()) {
+        if (auto *window = qobject_cast<QWindow *>(engine.rootObjects().constFirst())) {
+            WindowsChrome::applyTerminalChrome(window);
+        }
+    }
+
     return app.exec();
 }
