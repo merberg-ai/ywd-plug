@@ -2,10 +2,12 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
+#include <QTimer>
 #include <QWindow>
 
 #include "app/AppController.h"
 #include "app/WindowsChrome.h"
+#include "app/WindowStateManager.h"
 
 int main(int argc, char *argv[])
 {
@@ -19,8 +21,10 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
     AppController controller;
+    WindowStateManager windowState;
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("appController"), &controller);
+    engine.rootContext()->setContextProperty(QStringLiteral("windowState"), &windowState);
 
     QObject::connect(
         &engine,
@@ -33,7 +37,17 @@ int main(int argc, char *argv[])
 
     if (!engine.rootObjects().isEmpty()) {
         if (auto *window = qobject_cast<QWindow *>(engine.rootObjects().constFirst())) {
+            windowState.attach(window);
             WindowsChrome::applyTerminalChrome(window);
+
+            QObject::connect(window, &QWindow::visibilityChanged, window, [window](QWindow::Visibility visibility) {
+                if (visibility == QWindow::Hidden) {
+                    return;
+                }
+                QTimer::singleShot(0, window, [window] {
+                    WindowsChrome::applyTerminalChrome(window);
+                });
+            });
         }
     }
 
