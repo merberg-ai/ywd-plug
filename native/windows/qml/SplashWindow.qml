@@ -13,6 +13,7 @@ Window {
     visible: true
     color: "#050607"
     flags: Qt.SplashScreen | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
+    transientParent: null
 
     property color bg: "#050607"
     property color panel: "#0a0c0e"
