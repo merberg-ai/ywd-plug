@@ -12,25 +12,33 @@ Milestone 1 is checkpointed at:
 checkpoint/dev-win-m1
 ```
 
-That checkpoint proved the native application shell, Win32 serial transport, DM-32UV / DP570UV identification handshake, terminal-style UI, splash screen, and window-state persistence on real hardware.
+The hardware-validated native channel decoder / offline backup state is checkpointed at:
 
-`dev-win` is now in **Phase 2: read-only PROGRAM-mode validation**.
+```text
+checkpoint/dev-win-m2b
+```
 
-Phase 2 currently adds:
+`dev-win` is now in **Phase 3: selective live READ RADIO**.
 
-1. The proven `PSEARCH` / `PASSSTA` / `SYSINFO` handshake.
-2. Firmware V-frame `0x01` read.
-3. Memory-layout V-frame `0x0A` read.
-4. Validation of the radio-reported config-memory range.
-5. PROGRAM-mode entry using the browser-proven sequence.
-6. Safe 4096-byte memory reads.
-7. A contiguous raw config-memory backup.
-8. SHA-256 hashing and a JSON manifest with block metadata.
-9. Live read progress in the terminal UI.
+Phase 3 includes:
 
-**Native radio-memory writes remain unavailable.** There is no native `writeMemory()` implementation in this phase.
+1. Native `PSEARCH` / `PASSSTA` / `SYSINFO` handshake.
+2. Firmware V-frame `0x01` and memory-layout V-frame `0x0A` reads.
+3. PROGRAM-mode entry using the browser-proven read-only sequence.
+4. Metadata discovery by reading only byte `0xFFF` from each 4 KiB config block.
+5. Channel-count read from metadata block `0x12`.
+6. Exact selection of only the channel blocks required by the current channel count.
+7. TX-contact block reads (`0x42`, and `0x43` when required).
+8. In-memory native C++ channel decoding directly into the Channels workspace.
+9. A measured **READ RADIO** path reporting transferred bytes, discovered blocks, data blocks, and elapsed time.
+10. The existing exhaustive **RAW BACKUP** path, SHA-256 manifest, and **LOAD BACKUP** offline workflow.
 
-See [`PHASE2-READBACK.md`](PHASE2-READBACK.md) for the hardware test procedure and success criteria.
+**Native radio-memory writes remain unavailable and editing remains locked.**
+
+See:
+
+- [`PHASE2-READBACK.md`](PHASE2-READBACK.md) — exhaustive raw backup validation
+- [`PHASE3-SELECTIVE-READ.md`](PHASE3-SELECTIVE-READ.md) — normal fast READ RADIO validation
 
 ## Stack
 
@@ -54,21 +62,27 @@ BUILD.cmd
 RUN.cmd
 ```
 
-For the Phase-2 radio test:
+For the normal Phase-3 radio test:
 
 1. Select the correct COM port.
-2. Run **EXECUTE PROBE**.
-3. Confirm `RADIO DETECTED`.
-4. Run **RAW BACKUP**.
-5. Leave the radio connected until the read reaches 100%.
+2. Click **READ RADIO** directly; Probe is optional.
+3. Watch metadata discovery and selective block-read progress.
+4. On success, the Channels workspace should populate from the live radio.
+5. Compare the final byte count / elapsed time with the exhaustive RAW BACKUP path.
 
-Successful raw backups are stored under:
+For the known 88-channel test codeplug, the expected payload is about **12,490 bytes** rather than the 819,200-byte raw image.
+
+## Raw backups
+
+**RAW BACKUP** remains the exhaustive safety/diagnostic operation. Successful raw backups are stored under:
 
 ```text
 %USERPROFILE%\Documents\YWD-Plug Backups\
 ```
 
-Each read creates a `.bin` image and a `.json` manifest.
+Each raw backup creates a `.bin` image and a `.json` manifest.
+
+**LOAD BACKUP** decodes the newest saved image without touching the radio.
 
 ## Install
 
@@ -125,6 +139,7 @@ native/windows/
 ├── RUN.cmd
 ├── CHECKPOINT-M1.md
 ├── PHASE2-READBACK.md
+├── PHASE3-SELECTIVE-READ.md
 ├── qml/
 ├── resources/
 └── src/
@@ -133,17 +148,24 @@ native/windows/
     │   └── WinSerialPort.*
     └── radios/
         └── dm32uv/
+            ├── DM32Connection.*
+            ├── DM32SelectiveRead.cpp
+            ├── DM32MemoryBlock.h
+            └── DM32ChannelDecoder.*
 ```
 
 ## Next validation gate
 
-Do not port native codeplug decoding or radio-memory writes merely because the first raw read completes.
+Phase 3 must be hardware-proven before expanding the CPS read model.
 
-The next gate is:
+After selective READ RADIO is validated:
 
-1. Repeat the native read and prove stable output when the radio configuration is unchanged.
-2. Compare the native memory range and block data against the existing browser YWD-Plug read path.
-3. Confirm the same block metadata and byte content.
-4. Then port channel count and channel decoding into the native application.
+1. Reuse the metadata map + selected-block reader for Zones.
+2. Add Scan Lists.
+3. Add RX Groups.
+4. Add Contacts / Talk Groups and DMR Radio IDs.
+5. Add Settings / Display.
+6. Checkpoint the complete read-only native CPS.
+7. Only then begin binary round-trip encode verification and the later radio-write milestone.
 
 Radio-memory writes remain a later milestone after native read/decode/encode round-trip validation.
