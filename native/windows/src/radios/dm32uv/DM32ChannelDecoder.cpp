@@ -147,7 +147,7 @@ DM32ChannelDecodeResult DM32ChannelDecoder::decodeFile(const QString &path)
     const int channelCount = byteValue(image.at(firstBlockOffset))
         | (static_cast<int>(byteValue(image.at(firstBlockOffset + 1))) << 8);
 
-    if (channelCount < 0 || channelCount > MaximumChannels) {
+    if (channelCount > MaximumChannels) {
         result.error = QStringLiteral("Invalid channel count %1 in metadata block 0x12").arg(channelCount);
         return result;
     }
@@ -170,6 +170,18 @@ DM32ChannelDecodeResult DM32ChannelDecoder::decodeFile(const QString &path)
         return result;
     }
 
+    for (int blockIndex = 0; blockIndex < requiredBlocks; ++blockIndex) {
+        const quint8 expectedMetadata = static_cast<quint8>(ChannelFirstMetadata + blockIndex);
+        if (channelBlocks.at(blockIndex).metadata != expectedMetadata) {
+            result.error = QStringLiteral("Channel block sequence is incomplete: expected metadata 0x%1 at logical block %2, found 0x%3")
+                               .arg(expectedMetadata, 2, 16, QLatin1Char('0'))
+                               .arg(blockIndex)
+                               .arg(channelBlocks.at(blockIndex).metadata, 2, 16, QLatin1Char('0'))
+                               .toUpper();
+            return result;
+        }
+    }
+
     result.channels.reserve(channelCount);
 
     for (int channelNumber = 1; channelNumber <= channelCount; ++channelNumber) {
@@ -189,7 +201,7 @@ DM32ChannelDecodeResult DM32ChannelDecoder::decodeFile(const QString &path)
 
         const BlockRef &block = channelBlocks.at(logicalBlockIndex);
         const qsizetype absoluteOffset = block.offset + recordOffsetInBlock;
-        if (absoluteOffset < 0 || absoluteOffset + ChannelSize > image.size()) {
+        if (absoluteOffset + ChannelSize > image.size()) {
             result.error = QStringLiteral("Channel %1 points outside the captured image").arg(channelNumber);
             result.channels.clear();
             return result;
