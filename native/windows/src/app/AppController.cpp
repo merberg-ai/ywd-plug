@@ -37,6 +37,48 @@ AppController::AppController(QObject *parent)
         emit radioChanged();
     });
 
+    connect(&m_selectiveReadWatcher, &QFutureWatcher<DM32SelectiveReadResult>::finished, this, [this] {
+        const auto result = m_selectiveReadWatcher.result();
+        setBusy(false);
+        setOperation(QString());
+
+        if (!result.ok) {
+            m_liveReadReady = false;
+            setStatus(QStringLiteral("READ RADIO FAILED // %1").arg(result.error));
+            emit readStatsChanged();
+            return;
+        }
+
+        const auto decoded = DM32ChannelDecoder::decodeBlocks(result.blocks);
+        QString decodeError;
+        if (!applyDecodedChannels(decoded, decodeError)) {
+            m_liveReadReady = false;
+            setStatus(QStringLiteral("READ RADIO DECODE FAILED // %1").arg(decodeError));
+            emit readStatsChanged();
+            return;
+        }
+
+        m_radioDetected = true;
+        m_radioModel = result.model;
+        m_detectedPort = result.portName;
+        m_liveReadReady = true;
+        m_lastReadBytes = result.bytesTransferred;
+        m_lastReadMs = result.elapsedMs;
+        m_lastReadDataBlocks = result.dataBlockCount;
+        m_lastReadDiscoveredBlocks = result.discoveredBlockCount;
+        setReadProgress(100);
+
+        setStatus(
+            QStringLiteral("READ RADIO COMPLETE // %1 CHANNELS // %2 DATA BLOCKS // %3 BYTES // %4s")
+                .arg(m_channelCount)
+                .arg(result.dataBlockCount)
+                .arg(result.bytesTransferred)
+                .arg(QString::number(static_cast<double>(result.elapsedMs) / 1000.0, 'f', 1)));
+
+        emit radioChanged();
+        emit readStatsChanged();
+    });
+
     connect(&m_backupWatcher, &QFutureWatcher<DM32BackupResult>::finished, this, [this] {
         const auto result = m_backupWatcher.result();
         setBusy(false);
@@ -119,6 +161,7 @@ void AppController::probePort(const QString &portName)
     m_radioModel.clear();
     m_detectedPort.clear();
     clearBackupState();
+    clearReadStats();
     emit radioChanged();
 
     setReadProgress(0);
@@ -128,6 +171,52 @@ void AppController::probePort(const QString &portName)
 
     m_probeWatcher.setFuture(QtConcurrent::run([portName] {
         return DM32Connection::probe(portName);
+    }));
+}
+
+void AppController::readRadio(const QString &portName)
+{
+    if (m_busy) {
+        return;
+    }
+
+    if (portName.trimmed().isEmpty()) {
+        setStatus(QStringLiteral("SELECT A COM PORT FIRST"));
+        return;
+    }
+
+    m_radioDetected = false;
+    m_radioModel.clear();
+    m_detectedPort.clear();
+    clearBackupState();
+    clearReadStats();
+    emit radioChanged();
+
+    setReadProgress(0);
+    setOperation(QStringLiteral("read"));
+    setBusy(true);
+    setStatus(QStringLiteral("READ RADIO // PREPARING SELECTIVE SESSION"));
+
+    const QPointer<AppController> self(this);
+    const DM32Connection::ProgressCallback progress = [self](int value, const QString &message) {
+        if (!self) {
+            return;
+        }
+
+        QMetaObject::invokeMethod(
+            self,
+            [self, value, message] {
+                if (!self) {
+                    return;
+                }
+                self->setReadProgress(value);
+                self->setStatus(message);
+            },
+            Qt::QueuedConnection);
+    };
+
+    m_selectiveReadWatcher.setFuture(QtConcurrent::run([portName, progress] {
+        return DM32Connection::readChannelsSelective(portName, progress);
     }));
 }
 
@@ -143,11 +232,12 @@ void AppController::readRawBackup(const QString &portName)
     }
 
     if (!m_radioDetected || m_detectedPort.compare(portName, Qt::CaseInsensitive) != 0) {
-        setStatus(QStringLiteral("RAW BACKUP BLOCKED // PROBE THE SELECTED PORT FIRST"));
+        setStatus(QStringLiteral("RAW BACKUP BLOCKED // PROBE OR READ THE SELECTED PORT FIRST"));
         return;
     }
 
     clearBackupState();
+    clearReadStats();
     setReadProgress(0);
     setOperation(QStringLiteral("backup"));
     setBusy(true);
@@ -206,6 +296,7 @@ void AppController::loadLatestBackup()
 
     const QFileInfo backupInfo = backups.first();
     clearBackupState();
+    clearReadStats();
 
     QString decodeError;
     if (!loadChannelsFromBackup(backupInfo.absoluteFilePath(), decodeError)) {
@@ -243,6 +334,7 @@ void AppController::clearRadio()
     m_radioModel.clear();
     m_detectedPort.clear();
     clearBackupState();
+    clearReadStats();
     setReadProgress(0);
     setOperation(QString());
     setStatus(QStringLiteral("READY // SELECT A COM PORT"));
@@ -317,10 +409,28 @@ void AppController::clearChannelState()
     }
 }
 
-bool AppController::loadChannelsFromBackup(const QString &path, QString &error)
+void AppController::clearReadStats()
+{
+    const bool changed = m_liveReadReady
+        || m_lastReadBytes != 0
+        || m_lastReadMs != 0
+        || m_lastReadDataBlocks != 0
+        || m_lastReadDiscoveredBlocks != 0;
+
+    m_liveReadReady = false;
+    m_lastReadBytes = 0;
+    m_lastReadMs = 0;
+    m_lastReadDataBlocks = 0;
+    m_lastReadDiscoveredBlocks = 0;
+
+    if (changed) {
+        emit readStatsChanged();
+    }
+}
+
+bool AppController::applyDecodedChannels(const DM32ChannelDecodeResult &decoded, QString &error)
 {
     error.clear();
-    const auto decoded = DM32ChannelDecoder::decodeFile(path);
     if (!decoded.ok) {
         clearChannelState();
         error = decoded.error;
@@ -355,4 +465,9 @@ bool AppController::loadChannelsFromBackup(const QString &path, QString &error)
     m_channelsReady = true;
     emit channelsChanged();
     return true;
+}
+
+bool AppController::loadChannelsFromBackup(const QString &path, QString &error)
+{
+    return applyDecodedChannels(DM32ChannelDecoder::decodeFile(path), error);
 }
