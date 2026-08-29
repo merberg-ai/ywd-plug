@@ -29,4 +29,5 @@ private:
 
     void *m_handle {nullptr};
     QString m_error;
+    bool m_firstWriteAfterOpen {true};
 };
