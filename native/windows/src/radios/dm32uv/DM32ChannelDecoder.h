@@ -1,5 +1,7 @@
 #pragma once
 
+#include "DM32MemoryBlock.h"
+
 #include <QString>
 #include <QVector>
 
@@ -34,4 +36,5 @@ class DM32ChannelDecoder final
 {
 public:
     static DM32ChannelDecodeResult decodeFile(const QString &path);
+    static DM32ChannelDecodeResult decodeBlocks(const QVector<DM32MemoryBlock> &blocks);
 };
