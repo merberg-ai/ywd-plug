@@ -47,6 +47,7 @@ public:
     Q_INVOKABLE void refreshPorts();
     Q_INVOKABLE void probePort(const QString &portName);
     Q_INVOKABLE void readRawBackup(const QString &portName);
+    Q_INVOKABLE void loadLatestBackup();
     Q_INVOKABLE void clearRadio();
 
 signals:
@@ -66,6 +67,7 @@ private:
     void setOperation(const QString &operation);
     void clearBackupState();
     void clearChannelState();
+    bool loadChannelsFromBackup(const QString &path, QString &error);
 
     QVariantList m_ports;
     QVariantList m_channels;
