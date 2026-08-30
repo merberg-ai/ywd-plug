@@ -35,6 +35,14 @@ ApplicationWindow {
     property bool readingBackup: appController.busy && appController.operation === "backup"
     property bool probing: appController.busy && appController.operation === "probe"
 
+    property string asciiBanner:
+          "$$      $$ $$      $$ $$$$$$$          $$$$$$$  $$       $$   $$   $$$$$$\n"
+        + " $$    $$  $$  $$  $$ $$    $$         $$    $$ $$       $$   $$  $$    $$\n"
+        + "  $$  $$   $$ $$$$ $$ $$    $$  $$$$$  $$$$$$$  $$       $$   $$  $$\n"
+        + "   $$$$    $$$$  $$$$ $$    $$         $$       $$       $$   $$  $$  $$$\n"
+        + "    $$     $$$    $$$ $$    $$         $$       $$       $$   $$  $$   $$\n"
+        + "    $$     $$      $$ $$$$$$$          $$       $$$$$$$$  $$$$$$$   $$$$$$"
+
     background: Item {
         Rectangle { anchors.fill: parent; color: window.black }
         Repeater {
@@ -55,54 +63,28 @@ ApplicationWindow {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 154
+            Layout.preferredHeight: 146
             color: "#070809"
             border.color: window.line
             border.width: 1
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 16
+                anchors.leftMargin: 20
                 anchors.rightMargin: 20
-                anchors.topMargin: 9
-                anchors.bottomMargin: 9
-                spacing: 20
+                anchors.topMargin: 10
+                anchors.bottomMargin: 10
+                spacing: 24
 
-                Rectangle {
-                    Layout.preferredWidth: 330
-                    Layout.fillHeight: true
-                    Layout.topMargin: 2
-                    Layout.bottomMargin: 2
-                    color: "#050607"
-                    border.color: window.line
-                    border.width: 1
-                    clip: true
-
-                    Image {
-                        anchors.fill: parent
-                        anchors.margins: 2
-                        source: "qrc:/branding/ywd-plug-win-logo1.png"
-                        fillMode: Image.PreserveAspectCrop
-                        horizontalAlignment: Image.AlignHCenter
-                        verticalAlignment: Image.AlignVCenter
-                        smooth: true
-                    }
-
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        height: 22
-                        color: "#B0050607"
-                        Text {
-                            anchors.centerIn: parent
-                            text: "[ YWD-PLUG // RADIO PROGRAMMING WORKSTATION ]"
-                            color: window.silverDim
-                            font.family: "Consolas"
-                            font.pixelSize: 8
-                            font.letterSpacing: 0.8
-                        }
-                    }
+                Text {
+                    text: window.asciiBanner
+                    color: window.silverBright
+                    font.family: "Consolas"
+                    font.pixelSize: 9
+                    font.bold: true
+                    lineHeight: 0.88
+                    renderType: Text.NativeRendering
+                    Layout.alignment: Qt.AlignVCenter
                 }
 
                 Rectangle {
@@ -116,11 +98,11 @@ ApplicationWindow {
                 ColumnLayout {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignVCenter
-                    spacing: 5
+                    spacing: 4
 
                     Text { text: "YWD-PLUG / NATIVE WINDOWS"; color: window.silverBright; font.family: "Consolas"; font.pixelSize: 16; font.bold: true }
                     Text { text: "DM-32UV PROGRAMMING + CODEPLUG WORKSTATION"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 10; font.letterSpacing: 1.0 }
-                    Item { Layout.preferredHeight: 4 }
+                    Item { Layout.preferredHeight: 2 }
                     Text { text: "HOST    : WIN32 / x64"; color: window.silver; font.family: "Consolas"; font.pixelSize: 10 }
                     Text { text: "TARGET  : " + (appController.radioDetected ? appController.radioModel : "DM-32UV / DP570UV"); color: appController.radioDetected ? window.green : window.silver; font.family: "Consolas"; font.pixelSize: 10 }
                     Text { text: "PORT    : " + (appController.radioDetected ? appController.detectedPort : "UNBOUND"); color: appController.radioDetected ? window.green : window.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
