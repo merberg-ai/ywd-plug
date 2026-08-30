@@ -10,6 +10,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 6.8 REQUIRED COMPONENTS
     Core
@@ -21,7 +22,43 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
 
 qt_standard_project_setup(REQUIRES 6.8)
 
+# The user-supplied ICO is a valid modern PNG-frame ICO, but the Windows SDK
+# resource compiler on the test workstation rejects PNG-compressed icon frames.
+# Build a classic 32-bit DIB ICO from the same artwork, then embed that generated
+# ICO in the PE through the normal Windows .rc resource path.
+add_executable(ywd_icon_builder
+    tools/IconBuilder.cpp
+)
+target_link_libraries(ywd_icon_builder PRIVATE
+    Qt6::Core
+    Qt6::Gui
+)
+
+set(YWD_PLUG_RC_ICON "${CMAKE_CURRENT_BINARY_DIR}/ywd-plug-win-rc.ico")
+add_custom_command(
+    OUTPUT "${YWD_PLUG_RC_ICON}"
+    COMMAND $<TARGET_FILE:ywd_icon_builder>
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/ywd-plug-win-logo1.png"
+        "${YWD_PLUG_RC_ICON}"
+    DEPENDS
+        ywd_icon_builder
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/ywd-plug-win-logo1.png"
+    COMMENT "Generating Win32-compatible YWD-Plug application icon"
+    VERBATIM
+)
+add_custom_target(ywd_branding_icon DEPENDS "${YWD_PLUG_RC_ICON}")
+
+file(TO_NATIVE_PATH "${YWD_PLUG_RC_ICON}" YWD_PLUG_ICON_PATH)
+string(REPLACE "\\" "\\\\" YWD_PLUG_ICON_PATH "${YWD_PLUG_ICON_PATH}")
+configure_file(
+    resources/ywd-plug-win.rc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/ywd-plug-win.rc
+    @ONLY
+)
+
 qt_add_executable(ywd_plug WIN32
+    ${CMAKE_CURRENT_BINARY_DIR}/ywd-plug-win.rc
+    resources/branding.qrc
     src/main.cpp
     src/app/AppController.cpp
     src/app/AppController.h
@@ -44,6 +81,7 @@ qt_add_executable(ywd_plug WIN32
     src/radios/dm32uv/DM32ContactDecoder.h
     src/radios/dm32uv/DM32Constants.h
 )
+add_dependencies(ywd_plug ywd_branding_icon)
 
 qt_add_qml_module(ywd_plug
     URI YWDPlug
@@ -61,29 +99,6 @@ qt_add_qml_module(ywd_plug
         qml/components/StatusPill.qml
     RESOURCES
         resources/ywd-plug.svg
-)
-
-# Branding is intentionally staged as ordinary files beside the executable.
-# This avoids rc.exe and qrc path quirks while keeping the source artwork intact.
-set(YWD_PLUG_BRANDING_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources")
-set(YWD_PLUG_DIST_BRANDING_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dist/branding")
-
-add_custom_command(TARGET ywd_plug POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:ywd_plug>/branding"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${YWD_PLUG_BRANDING_SOURCE_DIR}/ywd-plug-win-logo1.png"
-        "$<TARGET_FILE_DIR:ywd_plug>/branding/ywd-plug-win-logo1.png"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${YWD_PLUG_BRANDING_SOURCE_DIR}/ywd-plug-win.ico"
-        "$<TARGET_FILE_DIR:ywd_plug>/branding/ywd-plug-win.ico"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${YWD_PLUG_DIST_BRANDING_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${YWD_PLUG_BRANDING_SOURCE_DIR}/ywd-plug-win-logo1.png"
-        "${YWD_PLUG_DIST_BRANDING_DIR}/ywd-plug-win-logo1.png"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${YWD_PLUG_BRANDING_SOURCE_DIR}/ywd-plug-win.ico"
-        "${YWD_PLUG_DIST_BRANDING_DIR}/ywd-plug-win.ico"
-    COMMENT "Staging YWD-Plug branding assets"
 )
 
 target_include_directories(ywd_plug PRIVATE src)
