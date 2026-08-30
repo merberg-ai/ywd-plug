@@ -13,6 +13,10 @@
 #include <array>
 
 namespace {
+constexpr ULONGLONG RadioReopenDelayMs = 400;
+constexpr DWORD DtrResetPulseMs = 20;
+ULONGLONG g_lastCloseTickMs = 0;
+
 HANDLE nativeHandle(void *handle)
 {
     return static_cast<HANDLE>(handle);
@@ -47,6 +51,19 @@ bool setTimeouts(HANDLE handle, DWORD readConstantMs, DWORD writeConstantMs)
     timeouts.WriteTotalTimeoutConstant = writeConstantMs;
     return SetCommTimeouts(handle, &timeouts) != FALSE;
 }
+
+void waitForRadioReopenDelay()
+{
+    if (g_lastCloseTickMs == 0) {
+        return;
+    }
+
+    const ULONGLONG now = GetTickCount64();
+    const ULONGLONG elapsed = now - g_lastCloseTickMs;
+    if (elapsed < RadioReopenDelayMs) {
+        Sleep(static_cast<DWORD>(RadioReopenDelayMs - elapsed));
+    }
+}
 }
 
 WinSerialPort::~WinSerialPort()
@@ -80,6 +97,11 @@ bool WinSerialPort::open(const QString &portName, qint32 baudRate)
     close();
     m_error.clear();
     m_firstWriteAfterOpen = true;
+
+    // Browser YWD-Plug deliberately waits 400 ms after closing a port before
+    // reopening it. The DM-32UV uses the close/DTR transition as a reset and
+    // can silently ignore PSEARCH while that reset cycle is still completing.
+    waitForRadioReopenDelay();
 
     const QString devicePath = QStringLiteral("\\\\.\\%1").arg(portName.trimmed());
     HANDLE handle = CreateFileW(
@@ -121,7 +143,12 @@ bool WinSerialPort::open(const QString &portName, qint32 baudRate)
     dcb.fParity = FALSE;
     dcb.fOutxCtsFlow = FALSE;
     dcb.fOutxDsrFlow = FALSE;
-    dcb.fDtrControl = DTR_CONTROL_DISABLE;
+
+    // Keep DTR asserted while the radio session is open. Browser YWD-Plug's
+    // physical port close drops DTR, which is relied upon to kick the radio out
+    // of its programming/session state before the next handshake.
+    dcb.fDtrControl = DTR_CONTROL_ENABLE;
+
     dcb.fDsrSensitivity = FALSE;
     dcb.fTXContinueOnXoff = TRUE;
     dcb.fOutX = FALSE;
@@ -144,8 +171,6 @@ bool WinSerialPort::open(const QString &portName, qint32 baudRate)
     }
 
     // Clear any latched driver error state left from a previous handle/session.
-    // Some inexpensive USB-serial bridges keep an error/abort condition around
-    // longer than expected when a handle is reopened in the same process.
     DWORD commErrors = 0;
     COMSTAT commStatus {};
     if (ClearCommError(handle, &commErrors, &commStatus) == FALSE) {
@@ -171,15 +196,18 @@ void WinSerialPort::close()
 
     HANDLE handle = nativeHandle(m_handle);
 
-    // Do not use PURGE_RXABORT/PURGE_TXABORT here. Those flags abort driver
-    // operations rather than merely discarding buffered data, and some USB
-    // serial bridges do not recover cleanly on the next CreateFile() in the
-    // same process. A normal CloseHandle is sufficient to end our synchronous
-    // session and mirrors the browser/Web Serial lifecycle much more closely.
+    // Do not abort the driver queues during normal teardown. First let pending
+    // TX reach the cable, then explicitly drop DTR. This mirrors the Web Serial
+    // close behavior used by browser YWD-Plug to reset the DM-32UV out of its
+    // programming/session state so the next PSEARCH is accepted.
     FlushFileBuffers(handle);
+    EscapeCommFunction(handle, CLRDTR);
+    Sleep(DtrResetPulseMs);
     CloseHandle(handle);
+
     m_handle = nullptr;
     m_firstWriteAfterOpen = true;
+    g_lastCloseTickMs = GetTickCount64();
 }
 
 bool WinSerialPort::clear()
