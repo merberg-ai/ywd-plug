@@ -21,6 +21,14 @@ Item {
         return Number(value).toFixed(5).replace(/0+$/, "").replace(/\.$/, "")
     }
 
+    function contactText(row) {
+        if (row.txContactName && row.txContactName.length > 0)
+            return row.txContactName + " [#" + row.txContactIndex + "]"
+        if (row.txContactIndex > 0)
+            return "#" + row.txContactIndex
+        return "--"
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 26
@@ -33,7 +41,7 @@ Item {
                 Text { text: "> CHANNEL DATABASE"; color: root.silverBright; font.family: "Consolas"; font.pixelSize: 21; font.bold: true }
                 Text {
                     text: appController.channelsReady
-                          ? appController.channelCount + " RECORDS // NATIVE RAW-IMAGE DECODER // READ ONLY"
+                          ? appController.channelCount + " RECORDS // " + (appController.contactsReady ? appController.contactCount + " TX CONTACTS RESOLVED // " : "") + "READ ONLY"
                           : "NO DECODED CHANNEL IMAGE LOADED"
                     color: appController.channelsReady ? root.green : root.silverDim
                     font.family: "Consolas"
@@ -67,14 +75,14 @@ Item {
                         anchors.rightMargin: 10
                         spacing: 0
                         Text { Layout.preferredWidth: 54; text: "#"; color: root.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
-                        Text { Layout.preferredWidth: 220; text: "NAME"; color: root.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
-                        Text { Layout.preferredWidth: 130; text: "RX MHz"; color: root.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
-                        Text { Layout.preferredWidth: 130; text: "TX MHz"; color: root.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
-                        Text { Layout.preferredWidth: 120; text: "MODE"; color: root.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
-                        Text { Layout.preferredWidth: 86; text: "POWER"; color: root.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
-                        Text { Layout.preferredWidth: 90; text: "BW"; color: root.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
+                        Text { Layout.preferredWidth: 200; text: "NAME"; color: root.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
+                        Text { Layout.preferredWidth: 118; text: "RX MHz"; color: root.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
+                        Text { Layout.preferredWidth: 118; text: "TX MHz"; color: root.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
+                        Text { Layout.preferredWidth: 100; text: "MODE"; color: root.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
+                        Text { Layout.preferredWidth: 75; text: "POWER"; color: root.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
+                        Text { Layout.preferredWidth: 80; text: "BW"; color: root.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
                         Text { Layout.preferredWidth: 80; text: "CC / TS"; color: root.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
-                        Text { Layout.fillWidth: true; text: "TX IDX"; color: root.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
+                        Text { Layout.fillWidth: true; text: "TX CONTACT"; color: root.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
                     }
                 }
 
@@ -102,20 +110,27 @@ Item {
                             anchors.rightMargin: 10
                             spacing: 0
                             Text { Layout.preferredWidth: 54; text: modelData.number; color: root.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
-                            Text { Layout.preferredWidth: 220; text: modelData.name; color: root.silverBright; elide: Text.ElideRight; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
-                            Text { Layout.preferredWidth: 130; text: root.frequencyText(modelData.rxFrequency, false); color: root.silver; font.family: "Consolas"; font.pixelSize: 10 }
-                            Text { Layout.preferredWidth: 130; text: root.frequencyText(modelData.txFrequency, modelData.txDisabled); color: modelData.txDisabled ? root.silverDim : root.silver; font.family: "Consolas"; font.pixelSize: 10 }
-                            Text { Layout.preferredWidth: 120; text: modelData.mode; color: modelData.mode.indexOf("Digital") >= 0 ? root.green : root.silver; font.family: "Consolas"; font.pixelSize: 10 }
-                            Text { Layout.preferredWidth: 86; text: modelData.power; color: root.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
-                            Text { Layout.preferredWidth: 90; text: modelData.bandwidth; color: root.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
+                            Text { Layout.preferredWidth: 200; text: modelData.name; color: root.silverBright; elide: Text.ElideRight; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
+                            Text { Layout.preferredWidth: 118; text: root.frequencyText(modelData.rxFrequency, false); color: root.silver; font.family: "Consolas"; font.pixelSize: 10 }
+                            Text { Layout.preferredWidth: 118; text: root.frequencyText(modelData.txFrequency, modelData.txDisabled); color: modelData.txDisabled ? root.silverDim : root.silver; font.family: "Consolas"; font.pixelSize: 10 }
+                            Text { Layout.preferredWidth: 100; text: modelData.mode; color: modelData.mode.indexOf("Digital") >= 0 ? root.green : root.silver; font.family: "Consolas"; font.pixelSize: 10 }
+                            Text { Layout.preferredWidth: 75; text: modelData.power; color: root.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
+                            Text { Layout.preferredWidth: 80; text: modelData.bandwidth; color: root.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
                             Text { Layout.preferredWidth: 80; text: modelData.colorCode >= 0 ? ("CC" + modelData.colorCode + " / TS" + modelData.timeSlot) : "--"; color: modelData.colorCode >= 0 ? root.green : root.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
-                            Text { Layout.fillWidth: true; text: modelData.txContactIndex >= 0 ? modelData.txContactIndex : "--"; color: root.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
+                            Text {
+                                Layout.fillWidth: true
+                                text: root.contactText(modelData)
+                                color: modelData.txContactName && modelData.txContactName.length > 0 ? root.green : root.silverDim
+                                elide: Text.ElideRight
+                                font.family: "Consolas"
+                                font.pixelSize: 10
+                            }
                         }
                     }
                 }
             }
         }
 
-        Text { Layout.fillWidth: true; text: "READ-ONLY CHANNEL VIEW // EDITING AND RADIO WRITES REMAIN LOCKED UNTIL BINARY ROUND-TRIP VERIFICATION"; color: root.silverDim; font.family: "Consolas"; font.pixelSize: 9 }
+        Text { Layout.fillWidth: true; text: "READ-ONLY CHANNEL VIEW // SELECTIVE CONTACT NAMES RESOLVE AFTER LIVE READ // RADIO WRITES REMAIN LOCKED"; color: root.silverDim; font.family: "Consolas"; font.pixelSize: 9 }
     }
 }
