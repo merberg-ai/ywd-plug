@@ -22,44 +22,11 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
 
 qt_standard_project_setup(REQUIRES 6.8)
 
-# The supplied ICO is valid and uses modern PNG-compressed frames. The Windows
-# SDK resource compiler on the test workstation rejects those frames, so build
-# a classic 32-bit DIB copy from that SAME supplied ICO using only Win32/WIC.
-# The helper is statically linked to the MSVC runtime and depends only on
-# Windows system libraries, so it can run before Qt deployment.
-add_executable(ywd_icon_builder
-    tools/IconBuilder.cpp
-)
-set_target_properties(ywd_icon_builder PROPERTIES
-    AUTOMOC OFF
-    AUTORCC OFF
-    AUTOUIC OFF
-    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
-)
-target_link_libraries(ywd_icon_builder PRIVATE
-    windowscodecs
-    ole32
-)
-if(MSVC)
-    target_compile_options(ywd_icon_builder PRIVATE /W4 /permissive- /Zc:__cplusplus)
-    target_compile_definitions(ywd_icon_builder PRIVATE UNICODE _UNICODE)
-endif()
-
-set(YWD_PLUG_RC_ICON "${CMAKE_CURRENT_BINARY_DIR}/ywd-plug-win-rc.ico")
-set(YWD_PLUG_ICON_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/resources/ywd-plug-win.ico")
-add_custom_command(
-    OUTPUT "${YWD_PLUG_RC_ICON}"
-    COMMAND $<TARGET_FILE:ywd_icon_builder>
-        "${YWD_PLUG_ICON_SOURCE}"
-        "${YWD_PLUG_RC_ICON}"
-    DEPENDS
-        ywd_icon_builder
-        "${YWD_PLUG_ICON_SOURCE}"
-    COMMENT "Generating Win32-compatible YWD-Plug application icon"
-    VERBATIM
-)
-add_custom_target(ywd_branding_icon DEPENDS "${YWD_PLUG_RC_ICON}")
-
+# Branding is deliberately boring:
+# - the normalized logo is embedded by Qt's resource compiler via branding.qrc;
+# - a checked-in classic DIB ICO is embedded in the PE through the normal .rc path;
+# - the original supplied ICO remains embedded in Qt resources for the runtime window icon.
+set(YWD_PLUG_RC_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/ywd-plug-win-classic.ico")
 file(TO_NATIVE_PATH "${YWD_PLUG_RC_ICON}" YWD_PLUG_ICON_PATH)
 string(REPLACE "\\" "\\\\" YWD_PLUG_ICON_PATH "${YWD_PLUG_ICON_PATH}")
 configure_file(
@@ -93,7 +60,6 @@ qt_add_executable(ywd_plug WIN32
     src/radios/dm32uv/DM32ContactDecoder.h
     src/radios/dm32uv/DM32Constants.h
 )
-add_dependencies(ywd_plug ywd_branding_icon)
 
 qt_add_qml_module(ywd_plug
     URI YWDPlug
