@@ -63,6 +63,10 @@ qt_add_qml_module(ywd_plug
         resources/ywd-plug.svg
 )
 
+# Give branding files explicit aliases so QML/C++ paths are stable regardless
+# of the source-tree directory structure preserved by rcc.
+set_source_files_properties(resources/ywd-plug-win.ico PROPERTIES QT_RESOURCE_ALIAS "ywd-plug-win.ico")
+set_source_files_properties(resources/ywd-plug-win-logo1.png PROPERTIES QT_RESOURCE_ALIAS "ywd-plug-win-logo1.png")
 qt_add_resources(ywd_plug "branding_resources"
     PREFIX "/branding"
     FILES
