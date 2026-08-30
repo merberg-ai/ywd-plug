@@ -48,7 +48,12 @@ qt_add_qml_module(ywd_plug
     QML_FILES
         qml/Main.qml
         qml/SplashWindow.qml
+        qml/ConnectionPage.qml
         qml/ChannelsPage.qml
+        qml/ZonesPage.qml
+        qml/ScanListsPage.qml
+        qml/ContactsPage.qml
+        qml/RXGroupsPage.qml
         qml/components/NavButton.qml
         qml/components/StatusPill.qml
     RESOURCES
