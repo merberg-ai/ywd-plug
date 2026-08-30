@@ -7,6 +7,7 @@
 #include "radios/dm32uv/DM32Connection.h"
 
 struct DM32ChannelDecodeResult;
+struct DM32CodeplugDecodeResult;
 
 class AppController final : public QObject
 {
@@ -26,6 +27,13 @@ class AppController final : public QObject
     Q_PROPERTY(QVariantList channels READ channels NOTIFY channelsChanged)
     Q_PROPERTY(int channelCount READ channelCount NOTIFY channelsChanged)
     Q_PROPERTY(bool channelsReady READ channelsReady NOTIFY channelsChanged)
+    Q_PROPERTY(QVariantList zones READ zones NOTIFY codeplugChanged)
+    Q_PROPERTY(int zoneCount READ zoneCount NOTIFY codeplugChanged)
+    Q_PROPERTY(QVariantList scanLists READ scanLists NOTIFY codeplugChanged)
+    Q_PROPERTY(int scanListCount READ scanListCount NOTIFY codeplugChanged)
+    Q_PROPERTY(QVariantList rxGroups READ rxGroups NOTIFY codeplugChanged)
+    Q_PROPERTY(int rxGroupCount READ rxGroupCount NOTIFY codeplugChanged)
+    Q_PROPERTY(bool codeplugReady READ codeplugReady NOTIFY codeplugChanged)
     Q_PROPERTY(bool liveReadReady READ liveReadReady NOTIFY readStatsChanged)
     Q_PROPERTY(qint64 lastReadBytes READ lastReadBytes NOTIFY readStatsChanged)
     Q_PROPERTY(qint64 lastReadMs READ lastReadMs NOTIFY readStatsChanged)
@@ -50,6 +58,13 @@ public:
     [[nodiscard]] QVariantList channels() const { return m_channels; }
     [[nodiscard]] int channelCount() const { return m_channelCount; }
     [[nodiscard]] bool channelsReady() const { return m_channelsReady; }
+    [[nodiscard]] QVariantList zones() const { return m_zones; }
+    [[nodiscard]] int zoneCount() const { return m_zones.size(); }
+    [[nodiscard]] QVariantList scanLists() const { return m_scanLists; }
+    [[nodiscard]] int scanListCount() const { return m_scanLists.size(); }
+    [[nodiscard]] QVariantList rxGroups() const { return m_rxGroups; }
+    [[nodiscard]] int rxGroupCount() const { return m_rxGroups.size(); }
+    [[nodiscard]] bool codeplugReady() const { return m_codeplugReady; }
     [[nodiscard]] bool liveReadReady() const { return m_liveReadReady; }
     [[nodiscard]] qint64 lastReadBytes() const { return m_lastReadBytes; }
     [[nodiscard]] qint64 lastReadMs() const { return m_lastReadMs; }
@@ -72,6 +87,7 @@ signals:
     void operationChanged();
     void backupChanged();
     void channelsChanged();
+    void codeplugChanged();
     void readStatsChanged();
 
 private:
@@ -81,12 +97,17 @@ private:
     void setOperation(const QString &operation);
     void clearBackupState();
     void clearChannelState();
+    void clearCodeplugState();
     void clearReadStats();
     bool applyDecodedChannels(const DM32ChannelDecodeResult &decoded, QString &error);
-    bool loadChannelsFromBackup(const QString &path, QString &error);
+    bool applyDecodedCodeplug(const DM32CodeplugDecodeResult &decoded, QString &error);
+    bool loadCodeplugFromBackup(const QString &path, QString &error);
 
     QVariantList m_ports;
     QVariantList m_channels;
+    QVariantList m_zones;
+    QVariantList m_scanLists;
+    QVariantList m_rxGroups;
     QString m_status {QStringLiteral("READY // SELECT A COM PORT")};
     QString m_radioModel;
     QString m_detectedPort;
@@ -98,6 +119,7 @@ private:
     bool m_radioDetected {false};
     bool m_backupReady {false};
     bool m_channelsReady {false};
+    bool m_codeplugReady {false};
     bool m_liveReadReady {false};
     int m_readProgress {0};
     int m_channelCount {0};
