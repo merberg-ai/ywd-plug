@@ -21,7 +21,16 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
 
 qt_standard_project_setup(REQUIRES 6.8)
 
-file(TO_NATIVE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/resources/ywd-plug-win.ico" YWD_PLUG_ICON_PATH)
+# BUILD.cmd normalizes the user-supplied multi-frame ICO into a classic DIB ICO
+# because some Windows SDK resource compilers reject PNG-compressed ICO frames.
+set(YWD_PLUG_RC_ICON "${CMAKE_CURRENT_BINARY_DIR}/ywd-plug-win-rc.ico")
+if(NOT EXISTS "${YWD_PLUG_RC_ICON}")
+    message(FATAL_ERROR
+        "RC-compatible icon is missing: ${YWD_PLUG_RC_ICON}. "
+        "Run BUILD.cmd so tools/Normalize-WindowsIcon.ps1 can generate it first.")
+endif()
+
+file(TO_NATIVE_PATH "${YWD_PLUG_RC_ICON}" YWD_PLUG_ICON_PATH)
 string(REPLACE "\\" "\\\\" YWD_PLUG_ICON_PATH "${YWD_PLUG_ICON_PATH}")
 configure_file(
     resources/ywd-plug-win.rc
