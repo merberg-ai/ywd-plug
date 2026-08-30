@@ -156,15 +156,17 @@ public static class YwdClassicIconWriter
         }
 
         long end = (long)selected.Offset + (long)selected.Length;
-        if (selected.Offset >= data.Length || end > data.Length)
+        if ((long)selected.Offset >= data.LongLength || end > data.LongLength)
         {
             throw new InvalidDataException("ICO frame points outside the source file.");
         }
 
-        bool isPng = selected.Length >= 8;
+        int frameOffset = checked((int)selected.Offset);
+        int frameLength = checked((int)selected.Length);
+        bool isPng = frameLength >= 8;
         for (int i = 0; i < 8 && isPng; ++i)
         {
-            if (data[selected.Offset + i] != PngSignature[i])
+            if (data[frameOffset + i] != PngSignature[i])
             {
                 isPng = false;
             }
@@ -172,8 +174,8 @@ public static class YwdClassicIconWriter
 
         if (isPng)
         {
-            byte[] payload = new byte[selected.Length];
-            Buffer.BlockCopy(data, (int)selected.Offset, payload, 0, (int)selected.Length);
+            byte[] payload = new byte[frameLength];
+            Buffer.BlockCopy(data, frameOffset, payload, 0, frameLength);
             using (MemoryStream frameStream = new MemoryStream(payload, false))
             using (Image image = Image.FromStream(frameStream))
             {
