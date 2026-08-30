@@ -2,12 +2,14 @@
 
 #include "radios/dm32uv/DM32ChannelDecoder.h"
 #include "radios/dm32uv/DM32CodeplugDecoder.h"
+#include "radios/dm32uv/DM32ContactDecoder.h"
 #include "serial/WinSerialPort.h"
 
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QMetaObject>
 #include <QPointer>
 #include <QStandardPaths>
@@ -124,6 +126,28 @@ AppController::AppController(QObject *parent)
             return;
         }
 
+        clearContactState();
+        m_contactWarning = result.contactWarning;
+        if (result.referencedContactIds.isEmpty()) {
+            DM32ContactDecodeResult emptyContacts;
+            emptyContacts.ok = true;
+            emptyContacts.databaseCount = result.contactDatabaseCount;
+            applyDecodedContacts(emptyContacts, decodeError);
+        } else if (!result.contactBlocks.isEmpty()) {
+            const auto decodedContacts = DM32ContactDecoder::decodeReferenced(
+                result.contactBlocks,
+                result.contactBase,
+                result.contactDatabaseCount,
+                result.referencedContactIds);
+            if (!applyDecodedContacts(decodedContacts, decodeError)) {
+                m_contactWarning = m_contactWarning.isEmpty()
+                    ? QStringLiteral("CONTACT DECODE FAILED // %1").arg(decodeError)
+                    : m_contactWarning + QStringLiteral(" // DECODE: ") + decodeError;
+            }
+        } else if (m_contactWarning.isEmpty()) {
+            m_contactWarning = QStringLiteral("REFERENCED CONTACTS WERE NOT AVAILABLE FROM THE RADIO");
+        }
+
         m_radioDetected = true;
         m_radioModel = result.model;
         m_detectedPort = result.portName;
@@ -131,19 +155,25 @@ AppController::AppController(QObject *parent)
         m_lastReadBytes = result.bytesTransferred;
         m_lastReadMs = result.elapsedMs;
         m_lastReadDataBlocks = result.dataBlockCount;
+        m_lastReadContactBlocks = result.contactBlockCount;
         m_lastReadDiscoveredBlocks = result.discoveredBlockCount;
         setReadProgress(100);
 
+        const QString contactsText = m_contactsReady
+            ? QStringLiteral("%1 REF CONTACTS").arg(m_contacts.size())
+            : QStringLiteral("CONTACTS --");
         setStatus(
-            QStringLiteral("READ RADIO COMPLETE // %1 CH // %2 ZONES // %3 SCAN // %4 RXG // %5 BYTES // %6s")
+            QStringLiteral("READ RADIO COMPLETE // %1 CH // %2 ZONES // %3 SCAN // %4 RXG // %5 // %6 BYTES // %7s")
                 .arg(m_channelCount)
                 .arg(m_zones.size())
                 .arg(m_scanLists.size())
                 .arg(m_rxGroups.size())
+                .arg(contactsText)
                 .arg(result.bytesTransferred)
                 .arg(QString::number(static_cast<double>(result.elapsedMs) / 1000.0, 'f', 1)));
 
         emit radioChanged();
+        emit contactsChanged();
         emit readStatsChanged();
     });
 
@@ -156,6 +186,7 @@ AppController::AppController(QObject *parent)
             m_backupReady = false;
             clearChannelState();
             clearCodeplugState();
+            clearContactState();
             setStatus(QStringLiteral("RAW BACKUP FAILED // %1").arg(result.error));
             emit backupChanged();
             return;
@@ -267,7 +298,7 @@ void AppController::readRadio(const QString &portName)
     setReadProgress(0);
     setOperation(QStringLiteral("read"));
     setBusy(true);
-    setStatus(QStringLiteral("READ RADIO // PREPARING SELECTIVE CODEPLUG SESSION"));
+    setStatus(QStringLiteral("READ RADIO // PREPARING SELECTIVE CODEPLUG + CONTACT SESSION"));
 
     const QPointer<AppController> self(this);
     const DM32Connection::ProgressCallback progress = [self](int value, const QString &message) {
@@ -390,7 +421,7 @@ void AppController::loadLatestBackup()
     m_backupManifestPath = QFileInfo::exists(manifestCandidate) ? manifestCandidate : QString();
     setReadProgress(100);
     setStatus(
-        QStringLiteral("OFFLINE BACKUP LOADED // %1 CH // %2 ZONES // %3 SCAN // %4 RXG // SHA256 %5")
+        QStringLiteral("OFFLINE BACKUP LOADED // %1 CH // %2 ZONES // %3 SCAN // %4 RXG // CONTACTS REQUIRE LIVE READ // SHA256 %5")
             .arg(m_channelCount)
             .arg(m_zones.size())
             .arg(m_scanLists.size())
@@ -466,6 +497,7 @@ void AppController::clearBackupState()
     m_backupSha256.clear();
     clearChannelState();
     clearCodeplugState();
+    clearContactState();
 
     if (changed) {
         emit backupChanged();
@@ -502,18 +534,37 @@ void AppController::clearCodeplugState()
     }
 }
 
+void AppController::clearContactState()
+{
+    const bool changed = m_contactsReady
+        || !m_contacts.isEmpty()
+        || m_contactDatabaseCount != 0
+        || !m_contactWarning.isEmpty();
+
+    m_contacts.clear();
+    m_contactDatabaseCount = 0;
+    m_contactsReady = false;
+    m_contactWarning.clear();
+
+    if (changed) {
+        emit contactsChanged();
+    }
+}
+
 void AppController::clearReadStats()
 {
     const bool changed = m_liveReadReady
         || m_lastReadBytes != 0
         || m_lastReadMs != 0
         || m_lastReadDataBlocks != 0
+        || m_lastReadContactBlocks != 0
         || m_lastReadDiscoveredBlocks != 0;
 
     m_liveReadReady = false;
     m_lastReadBytes = 0;
     m_lastReadMs = 0;
     m_lastReadDataBlocks = 0;
+    m_lastReadContactBlocks = 0;
     m_lastReadDiscoveredBlocks = 0;
 
     if (changed) {
@@ -550,6 +601,8 @@ bool AppController::applyDecodedChannels(const DM32ChannelDecodeResult &decoded,
         item.insert(QStringLiteral("rxGroupListId"), channel.rxGroupListId);
         item.insert(QStringLiteral("txContactIndex"), channel.txContactIndex);
         item.insert(QStringLiteral("txContactDigital"), channel.txContactDigital);
+        item.insert(QStringLiteral("txContactName"), QString());
+        item.insert(QStringLiteral("txContactDmrId"), QVariant::fromValue<qulonglong>(0));
         channels.push_back(item);
     }
 
@@ -617,6 +670,81 @@ bool AppController::applyDecodedCodeplug(const DM32CodeplugDecodeResult &decoded
     return true;
 }
 
+bool AppController::applyDecodedContacts(const DM32ContactDecodeResult &decoded, QString &error)
+{
+    error.clear();
+    if (!decoded.ok) {
+        m_contactsReady = false;
+        error = decoded.error;
+        emit contactsChanged();
+        return false;
+    }
+
+    QVariantList contacts;
+    contacts.reserve(decoded.contacts.size());
+    for (const DM32ContactInfo &contact : decoded.contacts) {
+        QStringList usedBy;
+        for (const QVariant &channelValue : m_channels) {
+            const QVariantMap channel = channelValue.toMap();
+            if (channel.value(QStringLiteral("txContactIndex")).toInt() == contact.index) {
+                usedBy.push_back(
+                    QStringLiteral("%1:%2")
+                        .arg(channel.value(QStringLiteral("number")).toInt())
+                        .arg(channel.value(QStringLiteral("name")).toString()));
+            }
+        }
+
+        QVariantMap item;
+        item.insert(QStringLiteral("index"), contact.index);
+        item.insert(QStringLiteral("name"), contact.name);
+        item.insert(QStringLiteral("dmrId"), QVariant::fromValue<qulonglong>(contact.dmrId));
+        item.insert(QStringLiteral("callSign"), contact.callSign);
+        item.insert(QStringLiteral("city"), contact.city);
+        item.insert(QStringLiteral("province"), contact.province);
+        item.insert(QStringLiteral("country"), contact.country);
+        item.insert(QStringLiteral("remark"), contact.remark);
+        item.insert(QStringLiteral("usedByCount"), usedBy.size());
+        item.insert(QStringLiteral("usedByText"), usedBy.join(QStringLiteral(", ")));
+        contacts.push_back(item);
+    }
+
+    m_contacts = contacts;
+    m_contactDatabaseCount = decoded.databaseCount;
+    m_contactsReady = true;
+    enrichChannelsWithContacts();
+    emit contactsChanged();
+    return true;
+}
+
+void AppController::enrichChannelsWithContacts()
+{
+    if (m_channels.isEmpty()) {
+        return;
+    }
+
+    QHash<int, QVariantMap> contactsByIndex;
+    for (const QVariant &value : m_contacts) {
+        const QVariantMap contact = value.toMap();
+        contactsByIndex.insert(contact.value(QStringLiteral("index")).toInt(), contact);
+    }
+
+    QVariantList updated;
+    updated.reserve(m_channels.size());
+    for (const QVariant &value : m_channels) {
+        QVariantMap channel = value.toMap();
+        const int contactIndex = channel.value(QStringLiteral("txContactIndex")).toInt();
+        const QVariantMap contact = contactsByIndex.value(contactIndex);
+        if (!contact.isEmpty()) {
+            channel.insert(QStringLiteral("txContactName"), contact.value(QStringLiteral("name")));
+            channel.insert(QStringLiteral("txContactDmrId"), contact.value(QStringLiteral("dmrId")));
+        }
+        updated.push_back(channel);
+    }
+
+    m_channels = updated;
+    emit channelsChanged();
+}
+
 bool AppController::loadCodeplugFromBackup(const QString &path, QString &error)
 {
     error.clear();
@@ -632,5 +760,6 @@ bool AppController::loadCodeplugFromBackup(const QString &path, QString &error)
         return false;
     }
 
+    clearContactState();
     return true;
 }
