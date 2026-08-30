@@ -1,9 +1,12 @@
+#include <QDir>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
 #include <QTimer>
+#include <QUrl>
 #include <QWindow>
 
 #include "app/AppController.h"
@@ -18,7 +21,15 @@ int main(int argc, char *argv[])
     QCoreApplication::setOrganizationDomain(QStringLiteral("kj6ywd.net"));
     QCoreApplication::setApplicationName(QStringLiteral("YWD-Plug"));
     QCoreApplication::setApplicationVersion(QStringLiteral("0.1.0-dev"));
-    QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/branding/ywd-plug-win.ico")));
+
+    const QDir appDir(QCoreApplication::applicationDirPath());
+    const QString brandingImagePath = appDir.filePath(QStringLiteral("branding/ywd-plug-win-logo1.png"));
+    const QString brandingIconPath = appDir.filePath(QStringLiteral("branding/ywd-plug-win.ico"));
+    const QUrl brandingImageUrl = QUrl::fromLocalFile(brandingImagePath);
+
+    if (QFileInfo::exists(brandingIconPath)) {
+        QGuiApplication::setWindowIcon(QIcon(brandingIconPath));
+    }
 
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
@@ -27,6 +38,11 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("appController"), &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("windowState"), &windowState);
+    engine.rootContext()->setContextProperty(QStringLiteral("brandingImageUrl"), brandingImageUrl);
+    engine.rootContext()->setContextProperty(QStringLiteral("brandingImagePath"), brandingImagePath);
+    engine.rootContext()->setContextProperty(QStringLiteral("brandingImageExists"), QFileInfo::exists(brandingImagePath));
+    engine.rootContext()->setContextProperty(QStringLiteral("brandingIconPath"), brandingIconPath);
+    engine.rootContext()->setContextProperty(QStringLiteral("brandingIconExists"), QFileInfo::exists(brandingIconPath));
 
     QObject::connect(
         &engine,
