@@ -22,21 +22,10 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
 
 qt_standard_project_setup(REQUIRES 6.8)
 
-# Branding is deliberately boring:
-# - the normalized logo is embedded by Qt's resource compiler via branding.qrc;
-# - a checked-in classic DIB ICO is embedded in the PE through the normal .rc path;
-# - the original supplied ICO remains embedded in Qt resources for the runtime window icon.
-set(YWD_PLUG_RC_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/ywd-plug-win-classic.ico")
-file(TO_NATIVE_PATH "${YWD_PLUG_RC_ICON}" YWD_PLUG_ICON_PATH)
-string(REPLACE "\\" "\\\\" YWD_PLUG_ICON_PATH "${YWD_PLUG_ICON_PATH}")
-configure_file(
-    resources/ywd-plug-win.rc.in
-    ${CMAKE_CURRENT_BINARY_DIR}/ywd-plug-win.rc
-    @ONLY
-)
-
+# Branding is intentionally simple here: Qt embeds the normalized masthead PNG
+# through branding.qrc. Native PE icon stamping is temporarily decoupled from
+# the application build so an ICO-format issue cannot block Phase 5 builds.
 qt_add_executable(ywd_plug WIN32
-    ${CMAKE_CURRENT_BINARY_DIR}/ywd-plug-win.rc
     resources/branding.qrc
     src/main.cpp
     src/app/AppController.cpp
