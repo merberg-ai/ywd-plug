@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
     QCoreApplication::setOrganizationDomain(QStringLiteral("kj6ywd.net"));
     QCoreApplication::setApplicationName(QStringLiteral("YWD-Plug"));
     QCoreApplication::setApplicationVersion(QStringLiteral("0.1.0-dev"));
-    QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/branding/resources/ywd-plug-win.ico")));
+    QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/branding/ywd-plug-win.ico")));
 
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
