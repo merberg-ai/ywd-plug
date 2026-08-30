@@ -12,6 +12,10 @@ constexpr quint8 ChannelFirstMetadata = 0x12;
 constexpr quint8 ChannelLastMetadata = 0x41;
 constexpr quint8 TxContactLowMetadata = 0x42;
 constexpr quint8 TxContactHighMetadata = 0x43;
+constexpr quint8 ScanListMetadata = 0x11;
+constexpr quint8 RxGroupsMetadata = 0x0F;
+constexpr quint8 ZoneFirstMetadata = 0x5C;
+constexpr quint8 ZoneLastMetadata = 0x64;
 constexpr int ChannelsInFirstBlock = 84;
 constexpr int ChannelsInFollowingBlock = 85;
 constexpr int MaximumChannels = 4000;
@@ -500,7 +504,7 @@ DM32SelectiveReadResult DM32Connection::readChannelsSelective(
         : 1 + ((remainingChannels + ChannelsInFollowingBlock - 1) / ChannelsInFollowingBlock);
 
     QVector<quint8> targetMetadata;
-    targetMetadata.reserve(requiredChannelBlocks + 2);
+    targetMetadata.reserve(requiredChannelBlocks + 13);
     for (int index = 0; index < requiredChannelBlocks; ++index) {
         const quint8 metadata = static_cast<quint8>(ChannelFirstMetadata + index);
         if (metadata > ChannelLastMetadata || !metadataAddresses.contains(metadata)) {
@@ -519,9 +523,21 @@ DM32SelectiveReadResult DM32Connection::readChannelsSelective(
         targetMetadata.push_back(TxContactHighMetadata);
     }
 
+    if (metadataAddresses.contains(ScanListMetadata)) {
+        targetMetadata.push_back(ScanListMetadata);
+    }
+    if (metadataAddresses.contains(RxGroupsMetadata)) {
+        targetMetadata.push_back(RxGroupsMetadata);
+    }
+    for (int metadata = ZoneFirstMetadata; metadata <= ZoneLastMetadata; ++metadata) {
+        if (metadataAddresses.contains(metadata)) {
+            targetMetadata.push_back(static_cast<quint8>(metadata));
+        }
+    }
+
     progress(
         73,
-        QStringLiteral("READ RADIO // %1 CHANNELS // FETCHING %2 DATA BLOCKS")
+        QStringLiteral("READ RADIO // %1 CHANNELS // FETCHING %2 CODEPLUG BLOCKS")
             .arg(result.channelCount)
             .arg(targetMetadata.size()));
 
