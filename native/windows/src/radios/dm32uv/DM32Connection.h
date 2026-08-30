@@ -1,5 +1,6 @@
 #pragma once
 
+#include "DM32ContactBlock.h"
 #include "DM32MemoryBlock.h"
 
 #include <QByteArray>
@@ -40,14 +41,22 @@ struct DM32SelectiveReadResult
     QString portName;
     QString firmware;
     QString error;
+    QString contactWarning;
     quint32 configStart {0};
     quint32 configEnd {0};
+    quint32 contactBase {0};
+    quint32 contactEnd {0};
+    int contactCapacity {0};
+    int contactDatabaseCount {0};
     int discoveredBlockCount {0};
     int channelCount {0};
     int dataBlockCount {0};
+    int contactBlockCount {0};
     qint64 bytesTransferred {0};
     qint64 elapsedMs {0};
+    QVector<int> referencedContactIds;
     QVector<DM32MemoryBlock> blocks;
+    QVector<DM32ContactBlock> contactBlocks;
 };
 
 class DM32Connection final
