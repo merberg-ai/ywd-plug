@@ -22,11 +22,7 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
 
 qt_standard_project_setup(REQUIRES 6.8)
 
-# Branding is intentionally simple here: Qt embeds the normalized masthead PNG
-# through branding.qrc. Native PE icon stamping is temporarily decoupled from
-# the application build so an ICO-format issue cannot block Phase 5 builds.
 qt_add_executable(ywd_plug WIN32
-    resources/branding.qrc
     src/main.cpp
     src/app/AppController.cpp
     src/app/AppController.h
