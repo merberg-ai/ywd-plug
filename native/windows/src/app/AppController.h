@@ -8,6 +8,7 @@
 
 struct DM32ChannelDecodeResult;
 struct DM32CodeplugDecodeResult;
+struct DM32ContactDecodeResult;
 
 class AppController final : public QObject
 {
@@ -34,10 +35,16 @@ class AppController final : public QObject
     Q_PROPERTY(QVariantList rxGroups READ rxGroups NOTIFY codeplugChanged)
     Q_PROPERTY(int rxGroupCount READ rxGroupCount NOTIFY codeplugChanged)
     Q_PROPERTY(bool codeplugReady READ codeplugReady NOTIFY codeplugChanged)
+    Q_PROPERTY(QVariantList contacts READ contacts NOTIFY contactsChanged)
+    Q_PROPERTY(int contactCount READ contactCount NOTIFY contactsChanged)
+    Q_PROPERTY(int contactDatabaseCount READ contactDatabaseCount NOTIFY contactsChanged)
+    Q_PROPERTY(bool contactsReady READ contactsReady NOTIFY contactsChanged)
+    Q_PROPERTY(QString contactWarning READ contactWarning NOTIFY contactsChanged)
     Q_PROPERTY(bool liveReadReady READ liveReadReady NOTIFY readStatsChanged)
     Q_PROPERTY(qint64 lastReadBytes READ lastReadBytes NOTIFY readStatsChanged)
     Q_PROPERTY(qint64 lastReadMs READ lastReadMs NOTIFY readStatsChanged)
     Q_PROPERTY(int lastReadDataBlocks READ lastReadDataBlocks NOTIFY readStatsChanged)
+    Q_PROPERTY(int lastReadContactBlocks READ lastReadContactBlocks NOTIFY readStatsChanged)
     Q_PROPERTY(int lastReadDiscoveredBlocks READ lastReadDiscoveredBlocks NOTIFY readStatsChanged)
 
 public:
@@ -65,10 +72,16 @@ public:
     [[nodiscard]] QVariantList rxGroups() const { return m_rxGroups; }
     [[nodiscard]] int rxGroupCount() const { return m_rxGroups.size(); }
     [[nodiscard]] bool codeplugReady() const { return m_codeplugReady; }
+    [[nodiscard]] QVariantList contacts() const { return m_contacts; }
+    [[nodiscard]] int contactCount() const { return m_contacts.size(); }
+    [[nodiscard]] int contactDatabaseCount() const { return m_contactDatabaseCount; }
+    [[nodiscard]] bool contactsReady() const { return m_contactsReady; }
+    [[nodiscard]] QString contactWarning() const { return m_contactWarning; }
     [[nodiscard]] bool liveReadReady() const { return m_liveReadReady; }
     [[nodiscard]] qint64 lastReadBytes() const { return m_lastReadBytes; }
     [[nodiscard]] qint64 lastReadMs() const { return m_lastReadMs; }
     [[nodiscard]] int lastReadDataBlocks() const { return m_lastReadDataBlocks; }
+    [[nodiscard]] int lastReadContactBlocks() const { return m_lastReadContactBlocks; }
     [[nodiscard]] int lastReadDiscoveredBlocks() const { return m_lastReadDiscoveredBlocks; }
 
     Q_INVOKABLE void refreshPorts();
@@ -88,6 +101,7 @@ signals:
     void backupChanged();
     void channelsChanged();
     void codeplugChanged();
+    void contactsChanged();
     void readStatsChanged();
 
 private:
@@ -98,9 +112,12 @@ private:
     void clearBackupState();
     void clearChannelState();
     void clearCodeplugState();
+    void clearContactState();
     void clearReadStats();
     bool applyDecodedChannels(const DM32ChannelDecodeResult &decoded, QString &error);
     bool applyDecodedCodeplug(const DM32CodeplugDecodeResult &decoded, QString &error);
+    bool applyDecodedContacts(const DM32ContactDecodeResult &decoded, QString &error);
+    void enrichChannelsWithContacts();
     bool loadCodeplugFromBackup(const QString &path, QString &error);
 
     QVariantList m_ports;
@@ -108,6 +125,7 @@ private:
     QVariantList m_zones;
     QVariantList m_scanLists;
     QVariantList m_rxGroups;
+    QVariantList m_contacts;
     QString m_status {QStringLiteral("READY // SELECT A COM PORT")};
     QString m_radioModel;
     QString m_detectedPort;
@@ -115,17 +133,21 @@ private:
     QString m_backupPath;
     QString m_backupManifestPath;
     QString m_backupSha256;
+    QString m_contactWarning;
     bool m_busy {false};
     bool m_radioDetected {false};
     bool m_backupReady {false};
     bool m_channelsReady {false};
     bool m_codeplugReady {false};
+    bool m_contactsReady {false};
     bool m_liveReadReady {false};
     int m_readProgress {0};
     int m_channelCount {0};
+    int m_contactDatabaseCount {0};
     qint64 m_lastReadBytes {0};
     qint64 m_lastReadMs {0};
     int m_lastReadDataBlocks {0};
+    int m_lastReadContactBlocks {0};
     int m_lastReadDiscoveredBlocks {0};
     QFutureWatcher<DM32ProbeResult> m_probeWatcher;
     QFutureWatcher<DM32SelectiveReadResult> m_selectiveReadWatcher;
