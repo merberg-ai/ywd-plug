@@ -21,8 +21,16 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
 
 qt_standard_project_setup(REQUIRES 6.8)
 
-qt_add_executable(ywd_plug WIN32
+file(TO_NATIVE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/resources/ywd-plug-win.ico" YWD_PLUG_ICON_PATH)
+string(REPLACE "\\" "\\\\" YWD_PLUG_ICON_PATH "${YWD_PLUG_ICON_PATH}")
+configure_file(
     resources/ywd-plug-win.rc
+    ${CMAKE_CURRENT_BINARY_DIR}/ywd-plug-win.rc
+    @ONLY
+)
+
+qt_add_executable(ywd_plug WIN32
+    ${CMAKE_CURRENT_BINARY_DIR}/ywd-plug-win.rc
     src/main.cpp
     src/app/AppController.cpp
     src/app/AppController.h
