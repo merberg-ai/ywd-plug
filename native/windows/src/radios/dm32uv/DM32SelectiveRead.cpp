@@ -384,7 +384,11 @@ QVector<int> referencedContactIds(int channelCount, const QVector<DM32MemoryBloc
         }
     }
 
-    QVector<int> result(ids.cbegin(), ids.cend());
+    QVector<int> result;
+    result.reserve(ids.size());
+    for (const int id : ids) {
+        result.push_back(id);
+    }
     std::sort(result.begin(), result.end());
     return result;
 }
@@ -545,7 +549,7 @@ DM32SelectiveReadResult DM32Connection::readChannelsSelective(
         }
     }
 
-    result.discoveredBlockCount = discovered.size();
+    result.discoveredBlockCount = static_cast<int>(discovered.size());
 
     if (!metadataAddresses.contains(ChannelFirstMetadata)) {
         result.error = QStringLiteral("Metadata discovery did not find first channel block 0x12");
@@ -618,7 +622,7 @@ DM32SelectiveReadResult DM32Connection::readChannelsSelective(
             .arg(targetMetadata.size()));
 
     result.blocks.reserve(targetMetadata.size());
-    for (int index = 0; index < targetMetadata.size(); ++index) {
+    for (qsizetype index = 0; index < targetMetadata.size(); ++index) {
         const quint8 metadata = targetMetadata.at(index);
         const quint32 address = metadataAddresses.value(metadata);
 
@@ -654,7 +658,7 @@ DM32SelectiveReadResult DM32Connection::readChannelsSelective(
         result.bytesTransferred += blockData.size();
 
         const int percent = 72 + static_cast<int>(
-            (static_cast<double>(index + 1) / targetMetadata.size()) * 16.0);
+            (static_cast<double>(index + 1) / static_cast<double>(targetMetadata.size())) * 16.0);
         progress(
             percent,
             QStringLiteral("READ RADIO // CODEPLUG %1/%2 // %3 // META %4")
@@ -664,7 +668,7 @@ DM32SelectiveReadResult DM32Connection::readChannelsSelective(
                 .arg(hexByte(metadata)));
     }
 
-    result.dataBlockCount = result.blocks.size();
+    result.dataBlockCount = static_cast<int>(result.blocks.size());
     result.referencedContactIds = referencedContactIds(result.channelCount, result.blocks);
 
     if (!result.referencedContactIds.isEmpty() && result.contactBase != 0 && result.contactEnd > result.contactBase) {
@@ -704,12 +708,17 @@ DM32SelectiveReadResult DM32Connection::readChannelsSelective(
                 }
             }
 
-            QVector<int> contactBlockNumbers(requiredContactBlocks.cbegin(), requiredContactBlocks.cend());
+            QVector<int> contactBlockNumbers;
+            contactBlockNumbers.reserve(requiredContactBlocks.size());
+            for (const int blockNumber : requiredContactBlocks) {
+                contactBlockNumbers.push_back(blockNumber);
+            }
             std::sort(contactBlockNumbers.begin(), contactBlockNumbers.end());
             const quint32 firstContactBlockAddress = result.contactBase & ~0x0FFFU;
+            const int contactPageCount = static_cast<int>(contactBlockNumbers.size());
 
             result.contactBlocks.reserve(contactBlockNumbers.size());
-            for (int index = 0; index < contactBlockNumbers.size(); ++index) {
+            for (int index = 0; index < contactPageCount; ++index) {
                 const int blockNumber = contactBlockNumbers.at(index);
                 const quint32 blockAddress = firstContactBlockAddress
                     + static_cast<quint32>(blockNumber * DM32Constants::BlockSize);
@@ -734,15 +743,15 @@ DM32SelectiveReadResult DM32Connection::readChannelsSelective(
                 result.bytesTransferred += blockData.size();
 
                 const int percent = 90 + static_cast<int>(
-                    (static_cast<double>(index + 1) / qMax(1, contactBlockNumbers.size())) * 7.0);
+                    (static_cast<double>(index + 1) / static_cast<double>(qMax(1, contactPageCount))) * 7.0);
                 progress(
                     percent,
                     QStringLiteral("READ RADIO // CONTACT PAGE %1/%2 // %3")
                         .arg(index + 1)
-                        .arg(contactBlockNumbers.size())
+                        .arg(contactPageCount)
                         .arg(hexAddress(blockAddress)));
             }
-            result.contactBlockCount = result.contactBlocks.size();
+            result.contactBlockCount = static_cast<int>(result.contactBlocks.size());
         } else {
             result.contactWarning = QStringLiteral("CONTACT HEADER READ FAILED // %1").arg(contactReadError);
         }
