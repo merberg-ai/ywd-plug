@@ -22,10 +22,9 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
 
 qt_standard_project_setup(REQUIRES 6.8)
 
-# The Windows SDK resource compiler on the test workstation rejects the
-# PNG-compressed frames in the supplied modern ICO. Generate a classic 32-bit
-# DIB ICO from the supplied branding PNG using only Win32/WIC, then embed that
-# generated icon in the executable through the standard Windows .rc path.
+# The supplied ICO is valid and uses modern PNG-compressed frames. The Windows
+# SDK resource compiler on the test workstation rejects those frames, so build
+# a classic 32-bit DIB copy from that SAME supplied ICO using only Win32/WIC.
 # The helper is statically linked to the MSVC runtime and depends only on
 # Windows system libraries, so it can run before Qt deployment.
 add_executable(ywd_icon_builder
@@ -47,7 +46,7 @@ if(MSVC)
 endif()
 
 set(YWD_PLUG_RC_ICON "${CMAKE_CURRENT_BINARY_DIR}/ywd-plug-win-rc.ico")
-set(YWD_PLUG_ICON_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/resources/ywd-plug-win-logo1.png")
+set(YWD_PLUG_ICON_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/resources/ywd-plug-win.ico")
 add_custom_command(
     OUTPUT "${YWD_PLUG_RC_ICON}"
     COMMAND $<TARGET_FILE:ywd_icon_builder>
