@@ -37,6 +37,8 @@ qt_add_executable(ywd_plug WIN32
     src/radios/dm32uv/DM32MemoryBlock.h
     src/radios/dm32uv/DM32ChannelDecoder.cpp
     src/radios/dm32uv/DM32ChannelDecoder.h
+    src/radios/dm32uv/DM32CodeplugDecoder.cpp
+    src/radios/dm32uv/DM32CodeplugDecoder.h
     src/radios/dm32uv/DM32Constants.h
 )
 
