@@ -2,6 +2,8 @@
 
 Phase 4 expands the native Windows selective-read path beyond channels while preserving the proven serial/session lifecycle from `checkpoint/dev-win-m3-serial`.
 
+The validated tabbed UI state is preserved at `checkpoint/dev-win-m4-codeplug-ui-tabs` before the codeplug sections were promoted into first-class sidebar workspaces.
+
 ## Safety boundary
 
 This phase is still strictly read-only.
@@ -52,14 +54,15 @@ All of these blocks are fetched during the same PROGRAM-mode serial session. The
 
 ## UI
 
-The existing channel workspace is promoted to a read-only `CODEPLUG DATABASE` with four terminal-style views:
+The read-only codeplug database is now organized by the primary left navigation instead of a second tab bar inside Channels:
 
-1. Channels
-2. Zones
-3. Scan Lists
-4. RX Groups
+1. `02 Channels` — channel database.
+2. `03 Zones` — zone names and channel membership.
+3. `04 Scan Lists` — scan membership, hang time, priorities, and designated TX behavior.
+4. `05 Contacts` — reserved and disabled until the separate contact-memory reader is implemented.
+5. `06 RX Groups` — DMR receive-group membership.
 
-`LOAD BACKUP` runs the same structure decoders against an existing native raw `.bin` capture, so UI/decoder testing does not require another radio read.
+The sidebar status panel also shows decoded channel, zone, scan-list, and RX-group counts. `LOAD BACKUP` runs the same structure decoders against an existing native raw `.bin` capture, so UI/decoder testing does not require another radio read.
 
 ## Contacts
 
@@ -68,9 +71,9 @@ The large digital contact database is intentionally not bulk-loaded in this phas
 ## Hardware test order
 
 1. Build and start YWD-Plug.
-2. Use `LOAD BACKUP` first and verify Channels/Zones/Scan Lists/RX Groups populate.
+2. Use `LOAD BACKUP` first and verify the Channels, Zones, Scan Lists, and RX Groups sidebar pages populate.
 3. Select the DM-32UV COM port and run `READ RADIO`.
-4. Verify all four views match the offline backup.
+4. Verify all four pages match the offline backup.
 5. Run another Probe and another Read Radio to confirm the proven DTR-reset/reopen lifecycle remains stable.
 
 Do not enable native radio writes until the read-only structures have been compared against the browser implementation and round-trip encoding has its own protected test phase.
