@@ -79,7 +79,7 @@ Window {
         Image {
             anchors.fill: parent
             anchors.margins: 2
-            source: "qrc:/branding/resources/ywd-plug-win-logo1.png"
+            source: "qrc:/branding/ywd-plug-win-logo1.png"
             fillMode: Image.PreserveAspectFit
             horizontalAlignment: Image.AlignHCenter
             verticalAlignment: Image.AlignVCenter
