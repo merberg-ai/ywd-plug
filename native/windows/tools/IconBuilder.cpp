@@ -1,4 +1,5 @@
 #include <QCoreApplication>
+#include <QDebug>
 #include <QFile>
 #include <QImage>
 #include <QPainter>
