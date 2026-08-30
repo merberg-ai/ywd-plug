@@ -57,7 +57,7 @@ Item {
 
             Text {
                 Layout.fillWidth: true
-                text: "Native Win32 serial transport. READ RADIO performs the selective codeplug read; RAW BACKUP remains the exhaustive safety/diagnostic capture. Radio writes remain locked."
+                text: "Native Win32 serial transport. READ RADIO performs the selective codeplug read plus channel-referenced digital contacts from the separate contact region; RAW BACKUP remains the exhaustive config safety/diagnostic capture. Radio writes remain locked."
                 wrapMode: Text.WordWrap
                 color: root.silverDim
                 font.family: "Consolas"
@@ -223,7 +223,13 @@ Item {
                         }
 
                         Text {
-                            text: root.readingRadio ? "* SELECTIVE READ ACTIVE" : root.readingBackup ? "* FULL BLOCK READ ACTIVE" : appController.liveReadReady ? "+ LIVE CODEPLUG DATABASE" : appController.codeplugReady ? "+ CODEPLUG IMAGE DECODED" : appController.radioDetected ? "+ PROBE PASSED" : "- LINK IDLE"
+                            text: root.readingRadio ? "* SELECTIVE READ ACTIVE"
+                                  : root.readingBackup ? "* FULL BLOCK READ ACTIVE"
+                                  : appController.contactsReady ? "+ CODEPLUG + REFERENCED CONTACTS"
+                                  : appController.liveReadReady ? "+ LIVE CODEPLUG DATABASE"
+                                  : appController.codeplugReady ? "+ CODEPLUG IMAGE DECODED"
+                                  : appController.radioDetected ? "+ PROBE PASSED"
+                                  : "- LINK IDLE"
                             color: root.readingRadio || root.readingBackup ? root.amber : (appController.liveReadReady || appController.codeplugReady || appController.radioDetected) ? root.green : root.silverDim
                             font.family: "Consolas"
                             font.pixelSize: 10
@@ -276,13 +282,13 @@ Item {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: appController.liveReadReady ? 300 : 230
+                Layout.preferredHeight: appController.liveReadReady ? 326 : 230
                 color: "#070809"
                 border.color: root.line
                 border.width: 1
 
                 Text {
-                    text: "[ SESSION STATUS / PHASE 4 ]"
+                    text: "[ SESSION STATUS / PHASE 5 ]"
                     color: root.silverBright
                     font.family: "Consolas"
                     font.pixelSize: 10
@@ -304,8 +310,21 @@ Item {
                     Text { text: "[--]  WRITE-MEMORY API NOT IMPLEMENTED / RADIO WRITES LOCKED"; color: root.amber; font.family: "Consolas"; font.pixelSize: 10 }
                     Text { text: appController.codeplugReady ? "[OK]  CHANNEL / ZONE / SCAN / RX-GROUP DECODERS READY" : "[--]  CODEPLUG DECODERS WAITING FOR IMAGE"; color: appController.codeplugReady ? root.green : root.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
                     Text { visible: appController.codeplugReady; text: "DATA> " + appController.channelCount + " CH // " + appController.zoneCount + " ZONES // " + appController.scanListCount + " SCAN // " + appController.rxGroupCount + " RXG"; color: root.green; font.family: "Consolas"; font.pixelSize: 10 }
-                    Text { visible: appController.liveReadReady; text: "FAST> MAP " + appController.lastReadDiscoveredBlocks + " BLOCKS // DATA " + appController.lastReadDataBlocks + " BLOCKS // " + appController.lastReadBytes + " BYTES // " + (appController.lastReadMs / 1000.0).toFixed(1) + "s"; color: root.green; font.family: "Consolas"; font.pixelSize: 9 }
-                    Text { text: appController.codeplugReady ? "NEXT> USE LEFT NAVIGATION TO INSPECT CODEPLUG SECTIONS" : appController.radioDetected ? "NEXT> READ RADIO OR EXECUTE RAW BACKUP" : "NEXT> SELECT COM PORT AND EXECUTE READ RADIO"; color: root.silverBright; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
+                    Text {
+                        visible: appController.liveReadReady
+                        text: appController.contactsReady
+                              ? "CONT> " + appController.contactCount + " REFERENCED // DATABASE HEADER " + appController.contactDatabaseCount + " // PAGES " + appController.lastReadContactBlocks
+                              : appController.contactWarning.length > 0
+                                ? "CONT> WARN // " + appController.contactWarning
+                                : "CONT> NO REFERENCED CONTACTS"
+                        color: appController.contactsReady ? root.green : appController.contactWarning.length > 0 ? root.amber : root.silverDim
+                        font.family: "Consolas"
+                        font.pixelSize: 9
+                        elide: Text.ElideRight
+                        width: parent.width
+                    }
+                    Text { visible: appController.liveReadReady; text: "FAST> MAP " + appController.lastReadDiscoveredBlocks + " BLOCKS // CFG " + appController.lastReadDataBlocks + " BLOCKS // CONTACT " + appController.lastReadContactBlocks + " PAGES // " + appController.lastReadBytes + " BYTES // " + (appController.lastReadMs / 1000.0).toFixed(1) + "s"; color: root.green; font.family: "Consolas"; font.pixelSize: 9 }
+                    Text { text: appController.contactsReady ? "NEXT> INSPECT CONTACTS OR CHANNEL TX-CONTACT RESOLUTION" : appController.codeplugReady ? "NEXT> USE LEFT NAVIGATION TO INSPECT CODEPLUG SECTIONS" : appController.radioDetected ? "NEXT> READ RADIO OR EXECUTE RAW BACKUP" : "NEXT> SELECT COM PORT AND EXECUTE READ RADIO"; color: root.silverBright; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
                 }
             }
 
