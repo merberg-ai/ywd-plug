@@ -60,8 +60,6 @@ qt_add_qml_module(ywd_plug
         qml/RXGroupsPage.qml
         qml/components/NavButton.qml
         qml/components/StatusPill.qml
-    RESOURCES
-        resources/ywd-plug.svg
 )
 
 target_include_directories(ywd_plug PRIVATE src)
