@@ -143,6 +143,17 @@ bool WinSerialPort::open(const QString &portName, qint32 baudRate)
         return false;
     }
 
+    // Clear any latched driver error state left from a previous handle/session.
+    // Some inexpensive USB-serial bridges keep an error/abort condition around
+    // longer than expected when a handle is reopened in the same process.
+    DWORD commErrors = 0;
+    COMSTAT commStatus {};
+    if (ClearCommError(handle, &commErrors, &commStatus) == FALSE) {
+        setLastError(QStringLiteral("Could not reset serial driver state"));
+        close();
+        return false;
+    }
+
     if (!clear()) {
         close();
         return false;
@@ -159,7 +170,13 @@ void WinSerialPort::close()
     }
 
     HANDLE handle = nativeHandle(m_handle);
-    PurgeComm(handle, PURGE_RXABORT | PURGE_RXCLEAR | PURGE_TXABORT | PURGE_TXCLEAR);
+
+    // Do not use PURGE_RXABORT/PURGE_TXABORT here. Those flags abort driver
+    // operations rather than merely discarding buffered data, and some USB
+    // serial bridges do not recover cleanly on the next CreateFile() in the
+    // same process. A normal CloseHandle is sufficient to end our synchronous
+    // session and mirrors the browser/Web Serial lifecycle much more closely.
+    FlushFileBuffers(handle);
     CloseHandle(handle);
     m_handle = nullptr;
     m_firstWriteAfterOpen = true;
@@ -172,7 +189,9 @@ bool WinSerialPort::clear()
         return false;
     }
 
-    if (PurgeComm(nativeHandle(m_handle), PURGE_RXABORT | PURGE_RXCLEAR | PURGE_TXABORT | PURGE_TXCLEAR) == FALSE) {
+    // Discard buffered bytes only. Never abort the driver's read/write queues
+    // as part of ordinary session setup.
+    if (PurgeComm(nativeHandle(m_handle), PURGE_RXCLEAR | PURGE_TXCLEAR) == FALSE) {
         setLastError(QStringLiteral("Could not clear serial buffers"));
         return false;
     }
@@ -193,11 +212,10 @@ bool WinSerialPort::writeAll(const QByteArray &data, int timeoutMs, QString &err
     // The DM-32UV can emit an unsolicited status frame shortly after the COM
     // port opens. The protocol intentionally waits for the radio to settle
     // before its first command, which gives that frame time to arrive after
-    // the initial open-time purge. Discard only stale RX bytes immediately
-    // before the first command of a new serial session. Later command/response
-    // traffic is left completely untouched.
+    // the initial open-time purge. Discard stale RX bytes immediately before
+    // the first command, but do not abort the driver queue.
     if (m_firstWriteAfterOpen) {
-        if (PurgeComm(handle, PURGE_RXABORT | PURGE_RXCLEAR) == FALSE) {
+        if (PurgeComm(handle, PURGE_RXCLEAR) == FALSE) {
             setLastError(QStringLiteral("Could not clear stale serial input before first command"));
             error = m_error;
             return false;
