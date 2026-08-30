@@ -79,14 +79,27 @@ ApplicationWindow {
                     clip: true
 
                     Image {
+                        id: headerBrandImage
                         anchors.fill: parent
                         anchors.margins: 2
-                        source: "qrc:/branding/ywd-plug-win-logo1.png"
+                        source: brandingImageUrl
                         fillMode: Image.PreserveAspectCrop
                         horizontalAlignment: Image.AlignHCenter
                         verticalAlignment: Image.AlignVCenter
                         smooth: true
                         mipmap: true
+                        cache: false
+                        asynchronous: false
+                    }
+
+                    Text {
+                        anchors.centerIn: parent
+                        visible: !brandingImageExists || headerBrandImage.status === Image.Error
+                        text: brandingImageExists ? "[ BRANDING IMAGE LOAD ERROR ]" : "[ BRANDING FILE MISSING ]"
+                        color: window.red
+                        font.family: "Consolas"
+                        font.pixelSize: 9
+                        font.bold: true
                     }
 
                     Rectangle {
