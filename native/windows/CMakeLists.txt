@@ -22,6 +22,7 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
 qt_standard_project_setup(REQUIRES 6.8)
 
 qt_add_executable(ywd_plug WIN32
+    resources/ywd-plug-win.rc
     src/main.cpp
     src/app/AppController.cpp
     src/app/AppController.h
@@ -35,10 +36,13 @@ qt_add_executable(ywd_plug WIN32
     src/radios/dm32uv/DM32Connection.h
     src/radios/dm32uv/DM32SelectiveRead.cpp
     src/radios/dm32uv/DM32MemoryBlock.h
+    src/radios/dm32uv/DM32ContactBlock.h
     src/radios/dm32uv/DM32ChannelDecoder.cpp
     src/radios/dm32uv/DM32ChannelDecoder.h
     src/radios/dm32uv/DM32CodeplugDecoder.cpp
     src/radios/dm32uv/DM32CodeplugDecoder.h
+    src/radios/dm32uv/DM32ContactDecoder.cpp
+    src/radios/dm32uv/DM32ContactDecoder.h
     src/radios/dm32uv/DM32Constants.h
 )
 
@@ -58,6 +62,13 @@ qt_add_qml_module(ywd_plug
         qml/components/StatusPill.qml
     RESOURCES
         resources/ywd-plug.svg
+)
+
+qt_add_resources(ywd_plug "branding_resources"
+    PREFIX "/branding"
+    FILES
+        resources/ywd-plug-win.ico
+        resources/ywd-plug-win-logo1.png
 )
 
 target_include_directories(ywd_plug PRIVATE src)
