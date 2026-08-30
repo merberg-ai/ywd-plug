@@ -24,15 +24,25 @@ using System.IO;
 public static class YwdClassicIconWriter
 {
     private static readonly int[] Sizes = new int[] { 16, 20, 24, 32, 40, 48, 64, 96, 128, 256 };
+    private static readonly byte[] PngSignature = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
+
+    private sealed class IconEntry
+    {
+        public int Width;
+        public int Height;
+        public uint Length;
+        public uint Offset;
+    }
 
     public static void Convert(string inputPath, string outputPath)
     {
+        byte[] sourceBytes = File.ReadAllBytes(inputPath);
+        List<IconEntry> entries = ReadDirectory(sourceBytes);
         List<byte[]> images = new List<byte[]>();
 
         foreach (int size in Sizes)
         {
-            using (Icon icon = new Icon(inputPath, size, size))
-            using (Bitmap source = icon.ToBitmap())
+            using (Bitmap source = LoadFrame(sourceBytes, entries, inputPath, size))
             using (Bitmap bitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb))
             {
                 using (Graphics graphics = Graphics.FromImage(bitmap))
@@ -57,9 +67,9 @@ public static class YwdClassicIconWriter
 
         using (BinaryWriter writer = new BinaryWriter(File.Create(outputPath)))
         {
-            writer.Write((ushort)0);                 // reserved
-            writer.Write((ushort)1);                 // icon
-            writer.Write((ushort)Sizes.Length);      // image count
+            writer.Write((ushort)0);
+            writer.Write((ushort)1);
+            writer.Write((ushort)Sizes.Length);
 
             int dataOffset = 6 + (16 * Sizes.Length);
             for (int i = 0; i < Sizes.Length; ++i)
@@ -67,12 +77,12 @@ public static class YwdClassicIconWriter
                 int size = Sizes[i];
                 byte dimension = size >= 256 ? (byte)0 : (byte)size;
 
-                writer.Write(dimension);             // width
-                writer.Write(dimension);             // height
-                writer.Write((byte)0);               // palette entries
-                writer.Write((byte)0);               // reserved
-                writer.Write((ushort)1);             // planes
-                writer.Write((ushort)32);            // bits per pixel
+                writer.Write(dimension);
+                writer.Write(dimension);
+                writer.Write((byte)0);
+                writer.Write((byte)0);
+                writer.Write((ushort)1);
+                writer.Write((ushort)32);
                 writer.Write((uint)images[i].Length);
                 writer.Write((uint)dataOffset);
                 dataOffset += images[i].Length;
@@ -82,6 +92,100 @@ public static class YwdClassicIconWriter
             {
                 writer.Write(image);
             }
+        }
+    }
+
+    private static List<IconEntry> ReadDirectory(byte[] data)
+    {
+        using (MemoryStream stream = new MemoryStream(data, false))
+        using (BinaryReader reader = new BinaryReader(stream))
+        {
+            ushort reserved = reader.ReadUInt16();
+            ushort type = reader.ReadUInt16();
+            ushort count = reader.ReadUInt16();
+            if (reserved != 0 || type != 1 || count == 0)
+            {
+                throw new InvalidDataException("Input file is not a valid Windows ICO container.");
+            }
+
+            List<IconEntry> entries = new List<IconEntry>();
+            for (int i = 0; i < count; ++i)
+            {
+                byte widthRaw = reader.ReadByte();
+                byte heightRaw = reader.ReadByte();
+                reader.ReadByte();
+                reader.ReadByte();
+                reader.ReadUInt16();
+                reader.ReadUInt16();
+                uint length = reader.ReadUInt32();
+                uint offset = reader.ReadUInt32();
+
+                IconEntry entry = new IconEntry();
+                entry.Width = widthRaw == 0 ? 256 : widthRaw;
+                entry.Height = heightRaw == 0 ? 256 : heightRaw;
+                entry.Length = length;
+                entry.Offset = offset;
+                entries.Add(entry);
+            }
+            return entries;
+        }
+    }
+
+    private static Bitmap LoadFrame(byte[] data, List<IconEntry> entries, string inputPath, int requestedSize)
+    {
+        IconEntry selected = null;
+        int bestDistance = Int32.MaxValue;
+        foreach (IconEntry entry in entries)
+        {
+            int distance = Math.Abs(entry.Width - requestedSize) + Math.Abs(entry.Height - requestedSize);
+            if (distance < bestDistance)
+            {
+                selected = entry;
+                bestDistance = distance;
+            }
+            if (entry.Width == requestedSize && entry.Height == requestedSize)
+            {
+                selected = entry;
+                break;
+            }
+        }
+
+        if (selected == null)
+        {
+            throw new InvalidDataException("ICO contains no image frames.");
+        }
+
+        long end = (long)selected.Offset + (long)selected.Length;
+        if (selected.Offset >= data.Length || end > data.Length)
+        {
+            throw new InvalidDataException("ICO frame points outside the source file.");
+        }
+
+        bool isPng = selected.Length >= 8;
+        for (int i = 0; i < 8 && isPng; ++i)
+        {
+            if (data[selected.Offset + i] != PngSignature[i])
+            {
+                isPng = false;
+            }
+        }
+
+        if (isPng)
+        {
+            byte[] payload = new byte[selected.Length];
+            Buffer.BlockCopy(data, (int)selected.Offset, payload, 0, (int)selected.Length);
+            using (MemoryStream frameStream = new MemoryStream(payload, false))
+            using (Image image = Image.FromStream(frameStream))
+            {
+                return new Bitmap(image);
+            }
+        }
+
+        // Fallback for an already-classic ICO or a future mixed-frame replacement.
+        using (Icon icon = new Icon(inputPath, requestedSize, requestedSize))
+        using (Bitmap bitmap = icon.ToBitmap())
+        {
+            return new Bitmap(bitmap);
         }
     }
 
@@ -96,20 +200,20 @@ public static class YwdClassicIconWriter
         using (MemoryStream stream = new MemoryStream(40 + xorBytes + maskBytes))
         using (BinaryWriter writer = new BinaryWriter(stream))
         {
-            // BITMAPINFOHEADER. biHeight is doubled for ICO XOR + AND planes.
+            // BITMAPINFOHEADER. ICO DIB height is XOR bitmap + AND mask.
             writer.Write((uint)40);
             writer.Write(width);
             writer.Write(height * 2);
             writer.Write((ushort)1);
             writer.Write((ushort)32);
-            writer.Write((uint)0);                   // BI_RGB
+            writer.Write((uint)0); // BI_RGB
             writer.Write((uint)xorBytes);
             writer.Write(0);
             writer.Write(0);
             writer.Write((uint)0);
             writer.Write((uint)0);
 
-            // Classic icon DIB pixels are bottom-up BGRA.
+            // Classic ICO DIB pixels are bottom-up BGRA.
             for (int y = height - 1; y >= 0; --y)
             {
                 for (int x = 0; x < width; ++x)
@@ -122,7 +226,7 @@ public static class YwdClassicIconWriter
                 }
             }
 
-            // Fully transparent pixels are already represented by alpha, so a zero AND mask is correct.
+            // Alpha already carries transparency; use an all-zero AND mask.
             writer.Write(new byte[maskBytes]);
             writer.Flush();
             return stream.ToArray();
