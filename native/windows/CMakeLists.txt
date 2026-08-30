@@ -21,41 +21,7 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
 
 qt_standard_project_setup(REQUIRES 6.8)
 
-# Preserve the user-supplied ICO exactly as-is for Qt/runtime use, but normalize
-# a build-only copy to classic DIB frames for older Windows SDK rc.exe versions
-# that reject PNG-compressed ICO frames with RC2176.
-set(YWD_PLUG_RC_ICON "${CMAKE_CURRENT_BINARY_DIR}/ywd-plug-win-rc.ico")
-execute_process(
-    COMMAND powershell.exe
-        -NoProfile
-        -ExecutionPolicy Bypass
-        -File "${CMAKE_CURRENT_SOURCE_DIR}/tools/Normalize-WindowsIcon.ps1"
-        -InputPath "${CMAKE_CURRENT_SOURCE_DIR}/resources/ywd-plug-win.ico"
-        -OutputPath "${YWD_PLUG_RC_ICON}"
-    RESULT_VARIABLE YWD_PLUG_ICON_NORMALIZE_RESULT
-    OUTPUT_VARIABLE YWD_PLUG_ICON_NORMALIZE_STDOUT
-    ERROR_VARIABLE YWD_PLUG_ICON_NORMALIZE_STDERR
-)
-
-if(NOT YWD_PLUG_ICON_NORMALIZE_RESULT EQUAL 0 OR NOT EXISTS "${YWD_PLUG_RC_ICON}")
-    message(FATAL_ERROR
-        "Failed to generate RC-compatible Windows icon.\n"
-        "stdout: ${YWD_PLUG_ICON_NORMALIZE_STDOUT}\n"
-        "stderr: ${YWD_PLUG_ICON_NORMALIZE_STDERR}")
-endif()
-
-message(STATUS "Generated RC-compatible Windows icon: ${YWD_PLUG_RC_ICON}")
-
-file(TO_NATIVE_PATH "${YWD_PLUG_RC_ICON}" YWD_PLUG_ICON_PATH)
-string(REPLACE "\\" "\\\\" YWD_PLUG_ICON_PATH "${YWD_PLUG_ICON_PATH}")
-configure_file(
-    resources/ywd-plug-win.rc
-    ${CMAKE_CURRENT_BINARY_DIR}/ywd-plug-win.rc
-    @ONLY
-)
-
 qt_add_executable(ywd_plug WIN32
-    ${CMAKE_CURRENT_BINARY_DIR}/ywd-plug-win.rc
     src/main.cpp
     src/app/AppController.cpp
     src/app/AppController.h
