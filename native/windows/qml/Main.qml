@@ -35,14 +35,6 @@ ApplicationWindow {
     property bool readingBackup: appController.busy && appController.operation === "backup"
     property bool probing: appController.busy && appController.operation === "probe"
 
-    property string asciiBanner:
-          "$$      $$ $$      $$ $$$$$$$          $$$$$$$  $$       $$   $$   $$$$$$\n"
-        + " $$    $$  $$  $$  $$ $$    $$         $$    $$ $$       $$   $$  $$    $$\n"
-        + "  $$  $$   $$ $$$$ $$ $$    $$  $$$$$  $$$$$$$  $$       $$   $$  $$\n"
-        + "   $$$$    $$$$  $$$$ $$    $$         $$       $$       $$   $$  $$  $$$\n"
-        + "    $$     $$$    $$$ $$    $$         $$       $$       $$   $$  $$   $$\n"
-        + "    $$     $$      $$ $$$$$$$          $$       $$$$$$$$  $$$$$$$   $$$$$$"
-
     background: Item {
         Rectangle { anchors.fill: parent; color: window.black }
         Repeater {
@@ -63,28 +55,55 @@ ApplicationWindow {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 146
+            Layout.preferredHeight: 154
             color: "#070809"
             border.color: window.line
             border.width: 1
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 20
+                anchors.leftMargin: 16
                 anchors.rightMargin: 20
-                anchors.topMargin: 10
-                anchors.bottomMargin: 10
-                spacing: 24
+                anchors.topMargin: 9
+                anchors.bottomMargin: 9
+                spacing: 20
 
-                Text {
-                    text: window.asciiBanner
-                    color: window.silverBright
-                    font.family: "Consolas"
-                    font.pixelSize: 9
-                    font.bold: true
-                    lineHeight: 0.88
-                    renderType: Text.NativeRendering
-                    Layout.alignment: Qt.AlignVCenter
+                Rectangle {
+                    Layout.preferredWidth: 330
+                    Layout.fillHeight: true
+                    Layout.topMargin: 2
+                    Layout.bottomMargin: 2
+                    color: "#050607"
+                    border.color: window.line
+                    border.width: 1
+                    clip: true
+
+                    Image {
+                        anchors.fill: parent
+                        anchors.margins: 2
+                        source: "qrc:/branding/resources/ywd-plug-win-logo1.png"
+                        fillMode: Image.PreserveAspectCrop
+                        horizontalAlignment: Image.AlignHCenter
+                        verticalAlignment: Image.AlignVCenter
+                        smooth: true
+                        mipmap: true
+                    }
+
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        height: 22
+                        color: "#B0050607"
+                        Text {
+                            anchors.centerIn: parent
+                            text: "[ YWD-PLUG // RADIO PROGRAMMING WORKSTATION ]"
+                            color: window.silverDim
+                            font.family: "Consolas"
+                            font.pixelSize: 8
+                            font.letterSpacing: 0.8
+                        }
+                    }
                 }
 
                 Rectangle {
@@ -101,11 +120,17 @@ ApplicationWindow {
                     spacing: 5
 
                     Text { text: "YWD-PLUG / NATIVE WINDOWS"; color: window.silverBright; font.family: "Consolas"; font.pixelSize: 16; font.bold: true }
-                    Text { text: "RADIO PROGRAMMING WORKSTATION"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 10; font.letterSpacing: 1.2 }
-                    Item { Layout.preferredHeight: 5 }
+                    Text { text: "DM-32UV PROGRAMMING + CODEPLUG WORKSTATION"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 10; font.letterSpacing: 1.0 }
+                    Item { Layout.preferredHeight: 4 }
                     Text { text: "HOST    : WIN32 / x64"; color: window.silver; font.family: "Consolas"; font.pixelSize: 10 }
                     Text { text: "TARGET  : " + (appController.radioDetected ? appController.radioModel : "DM-32UV / DP570UV"); color: appController.radioDetected ? window.green : window.silver; font.family: "Consolas"; font.pixelSize: 10 }
                     Text { text: "PORT    : " + (appController.radioDetected ? appController.detectedPort : "UNBOUND"); color: appController.radioDetected ? window.green : window.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
+                    Text {
+                        text: "CONTACT : " + (appController.contactsReady ? (appController.contactCount + " REFERENCED / " + appController.contactDatabaseCount + " DATABASE") : "NOT LOADED")
+                        color: appController.contactsReady ? window.green : window.silverDim
+                        font.family: "Consolas"
+                        font.pixelSize: 10
+                    }
                     Text { text: "ACCESS  : READ-ONLY / WRITE LOCKED"; color: window.amber; font.family: "Consolas"; font.pixelSize: 10 }
                 }
 
@@ -115,6 +140,7 @@ ApplicationWindow {
                           : window.readingBackup ? "BACKUP"
                           : window.probing ? "PROBING"
                           : window.operationError ? "FAULT"
+                          : appController.contactsReady ? "CONTACTS OK"
                           : appController.liveReadReady ? "LIVE READ OK"
                           : appController.codeplugReady ? "CODEPLUG OK"
                           : appController.backupReady ? "BACKUP OK"
@@ -150,7 +176,7 @@ ApplicationWindow {
                     NavButton { Layout.fillWidth: true; indexText: "02"; text: "Channels"; enabled: appController.channelsReady; active: window.activePage === 2; onClicked: window.activePage = 2 }
                     NavButton { Layout.fillWidth: true; indexText: "03"; text: "Zones"; enabled: appController.codeplugReady && appController.zoneCount > 0; active: window.activePage === 3; onClicked: window.activePage = 3 }
                     NavButton { Layout.fillWidth: true; indexText: "04"; text: "Scan Lists"; enabled: appController.codeplugReady && appController.scanListCount > 0; active: window.activePage === 4; onClicked: window.activePage = 4 }
-                    NavButton { Layout.fillWidth: true; indexText: "05"; text: "Contacts"; enabled: false; active: window.activePage === 5; onClicked: window.activePage = 5 }
+                    NavButton { Layout.fillWidth: true; indexText: "05"; text: "Contacts"; enabled: appController.contactsReady; active: window.activePage === 5; onClicked: window.activePage = 5 }
                     NavButton { Layout.fillWidth: true; indexText: "06"; text: "RX Groups"; enabled: appController.codeplugReady && appController.rxGroupCount > 0; active: window.activePage === 6; onClicked: window.activePage = 6 }
 
                     Text { text: "+--[ CONFIG ]-------------------------------"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 10; Layout.topMargin: 14; Layout.bottomMargin: 5 }
@@ -164,7 +190,7 @@ ApplicationWindow {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 158
+                        Layout.preferredHeight: 174
                         color: window.black2
                         border.color: window.line
                         border.width: 1
@@ -176,11 +202,12 @@ ApplicationWindow {
 
                             Text { text: "SYSTEM> STATUS"; color: window.amber; font.family: "Consolas"; font.pixelSize: 10; font.bold: true }
                             Text { text: "BRANCH : dev-win"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 9 }
-                            Text { text: "PHASE  : milestone-4"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 9 }
+                            Text { text: "PHASE  : milestone-5"; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 9 }
                             Text { text: "READ   : " + (appController.liveReadReady ? "SELECTIVE" : appController.backupReady ? "CAPTURED" : "ARMED"); color: appController.liveReadReady || appController.backupReady ? window.green : window.silverDim; font.family: "Consolas"; font.pixelSize: 9; font.bold: true }
                             Text { text: "CHAN   : " + (appController.channelsReady ? appController.channelCount : "--"); color: appController.channelsReady ? window.green : window.silverDim; font.family: "Consolas"; font.pixelSize: 9; font.bold: true }
                             Text { text: "ZONE   : " + (appController.codeplugReady ? appController.zoneCount : "--"); color: appController.codeplugReady ? window.green : window.silverDim; font.family: "Consolas"; font.pixelSize: 9 }
                             Text { text: "SCAN   : " + (appController.codeplugReady ? appController.scanListCount : "--"); color: appController.codeplugReady ? window.green : window.silverDim; font.family: "Consolas"; font.pixelSize: 9 }
+                            Text { text: "CONT   : " + (appController.contactsReady ? appController.contactCount : "--"); color: appController.contactsReady ? window.green : window.silverDim; font.family: "Consolas"; font.pixelSize: 9 }
                             Text { text: "RXG    : " + (appController.codeplugReady ? appController.rxGroupCount : "--"); color: appController.codeplugReady ? window.green : window.silverDim; font.family: "Consolas"; font.pixelSize: 9 }
                             Text { text: "WRITE  : LOCKED"; color: window.green; font.family: "Consolas"; font.pixelSize: 9; font.bold: true }
                         }
@@ -221,7 +248,8 @@ ApplicationWindow {
                 spacing: 16
 
                 Text {
-                    text: appController.liveReadReady ? "[LIVE READ]"
+                    text: appController.contactsReady ? "[CONTACTS]"
+                          : appController.liveReadReady ? "[LIVE READ]"
                           : appController.codeplugReady ? "[CODEPLUG]"
                           : appController.backupReady ? "[BACKUP]"
                           : appController.radioDetected ? "[OK]"
@@ -234,7 +262,7 @@ ApplicationWindow {
                     font.bold: true
                 }
                 Text { text: appController.status; color: window.silverDim; font.family: "Consolas"; font.pixelSize: 9; elide: Text.ElideRight; Layout.fillWidth: true }
-                Text { text: "KJ6YWD.NET // YWD-PLUG // DEV-WIN // M4"; color: window.silver; font.family: "Consolas"; font.pixelSize: 9 }
+                Text { text: "KJ6YWD.NET // YWD-PLUG // DEV-WIN // M5"; color: window.silver; font.family: "Consolas"; font.pixelSize: 9 }
             }
         }
     }
@@ -243,13 +271,18 @@ ApplicationWindow {
         target: appController
 
         function onChannelsChanged() {
-            if (appController.liveReadReady && appController.channelsReady)
+            if (appController.liveReadReady && appController.channelsReady && window.activePage === 1)
                 window.activePage = 2
         }
 
         function onCodeplugChanged() {
-            if (!appController.codeplugReady && window.activePage > 2)
+            if (!appController.codeplugReady && (window.activePage === 3 || window.activePage === 4 || window.activePage === 6))
                 window.activePage = 1
+        }
+
+        function onContactsChanged() {
+            if (!appController.contactsReady && window.activePage === 5)
+                window.activePage = appController.channelsReady ? 2 : 1
         }
     }
 
