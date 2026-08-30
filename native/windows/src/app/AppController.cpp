@@ -1,6 +1,7 @@
 #include "AppController.h"
 
 #include "radios/dm32uv/DM32ChannelDecoder.h"
+#include "radios/dm32uv/DM32CodeplugDecoder.h"
 #include "serial/WinSerialPort.h"
 
 #include <QCryptographicHash>
@@ -10,8 +11,65 @@
 #include <QMetaObject>
 #include <QPointer>
 #include <QStandardPaths>
+#include <QStringList>
 #include <QVariantMap>
 #include <QtConcurrent/QtConcurrentRun>
+
+namespace {
+QString joinedIntegers(const QVector<int> &values)
+{
+    QStringList text;
+    text.reserve(values.size());
+    for (const int value : values) {
+        text.push_back(QString::number(value));
+    }
+    return text.join(QStringLiteral(", "));
+}
+
+QString joinedIds(const QVector<quint32> &values)
+{
+    QStringList text;
+    text.reserve(values.size());
+    for (const quint32 value : values) {
+        text.push_back(QString::number(value));
+    }
+    return text.join(QStringLiteral(", "));
+}
+
+QVariantList integerList(const QVector<int> &values)
+{
+    QVariantList result;
+    result.reserve(values.size());
+    for (const int value : values) {
+        result.push_back(value);
+    }
+    return result;
+}
+
+QVariantList idList(const QVector<quint32> &values)
+{
+    QVariantList result;
+    result.reserve(values.size());
+    for (const quint32 value : values) {
+        result.push_back(QVariant::fromValue<qulonglong>(value));
+    }
+    return result;
+}
+
+QString channelSelectorText(int type, int channel)
+{
+    if (type <= 0) {
+        return QStringLiteral("NONE");
+    }
+    if (type == 1) {
+        return QStringLiteral("CURRENT");
+    }
+    if (channel > 0) {
+        return QStringLiteral("CH %1").arg(channel);
+    }
+    return QStringLiteral("TYPE %1").arg(type);
+}
+} // namespace
 
 AppController::AppController(QObject *parent)
     : QObject(parent)
@@ -49,11 +107,19 @@ AppController::AppController(QObject *parent)
             return;
         }
 
-        const auto decoded = DM32ChannelDecoder::decodeBlocks(result.blocks);
+        const auto decodedChannels = DM32ChannelDecoder::decodeBlocks(result.blocks);
         QString decodeError;
-        if (!applyDecodedChannels(decoded, decodeError)) {
+        if (!applyDecodedChannels(decodedChannels, decodeError)) {
             m_liveReadReady = false;
-            setStatus(QStringLiteral("READ RADIO DECODE FAILED // %1").arg(decodeError));
+            setStatus(QStringLiteral("READ RADIO CHANNEL DECODE FAILED // %1").arg(decodeError));
+            emit readStatsChanged();
+            return;
+        }
+
+        const auto decodedCodeplug = DM32CodeplugDecoder::decodeBlocks(result.blocks);
+        if (!applyDecodedCodeplug(decodedCodeplug, decodeError)) {
+            m_liveReadReady = false;
+            setStatus(QStringLiteral("READ RADIO STRUCTURE DECODE FAILED // %1").arg(decodeError));
             emit readStatsChanged();
             return;
         }
@@ -69,9 +135,11 @@ AppController::AppController(QObject *parent)
         setReadProgress(100);
 
         setStatus(
-            QStringLiteral("READ RADIO COMPLETE // %1 CHANNELS // %2 DATA BLOCKS // %3 BYTES // %4s")
+            QStringLiteral("READ RADIO COMPLETE // %1 CH // %2 ZONES // %3 SCAN // %4 RXG // %5 BYTES // %6s")
                 .arg(m_channelCount)
-                .arg(result.dataBlockCount)
+                .arg(m_zones.size())
+                .arg(m_scanLists.size())
+                .arg(m_rxGroups.size())
                 .arg(result.bytesTransferred)
                 .arg(QString::number(static_cast<double>(result.elapsedMs) / 1000.0, 'f', 1)));
 
@@ -87,6 +155,7 @@ AppController::AppController(QObject *parent)
         if (!result.ok) {
             m_backupReady = false;
             clearChannelState();
+            clearCodeplugState();
             setStatus(QStringLiteral("RAW BACKUP FAILED // %1").arg(result.error));
             emit backupChanged();
             return;
@@ -102,13 +171,16 @@ AppController::AppController(QObject *parent)
         setReadProgress(100);
 
         QString decodeError;
-        if (loadChannelsFromBackup(result.backupPath, decodeError)) {
+        if (loadCodeplugFromBackup(result.backupPath, decodeError)) {
             setStatus(
-                QStringLiteral("RAW BACKUP COMPLETE // %1 CHANNELS DECODED // SHA256 %2")
+                QStringLiteral("RAW BACKUP COMPLETE // %1 CH // %2 ZONES // %3 SCAN // %4 RXG // SHA256 %5")
                     .arg(m_channelCount)
+                    .arg(m_zones.size())
+                    .arg(m_scanLists.size())
+                    .arg(m_rxGroups.size())
                     .arg(result.sha256.left(16).toUpper()));
         } else {
-            setStatus(QStringLiteral("RAW BACKUP COMPLETE // CHANNEL DECODE FAILED // %1").arg(decodeError));
+            setStatus(QStringLiteral("RAW BACKUP COMPLETE // DECODE FAILED // %1").arg(decodeError));
         }
 
         emit radioChanged();
@@ -195,7 +267,7 @@ void AppController::readRadio(const QString &portName)
     setReadProgress(0);
     setOperation(QStringLiteral("read"));
     setBusy(true);
-    setStatus(QStringLiteral("READ RADIO // PREPARING SELECTIVE SESSION"));
+    setStatus(QStringLiteral("READ RADIO // PREPARING SELECTIVE CODEPLUG SESSION"));
 
     const QPointer<AppController> self(this);
     const DM32Connection::ProgressCallback progress = [self](int value, const QString &message) {
@@ -299,7 +371,7 @@ void AppController::loadLatestBackup()
     clearReadStats();
 
     QString decodeError;
-    if (!loadChannelsFromBackup(backupInfo.absoluteFilePath(), decodeError)) {
+    if (!loadCodeplugFromBackup(backupInfo.absoluteFilePath(), decodeError)) {
         setStatus(QStringLiteral("LOAD BACKUP FAILED // %1").arg(decodeError));
         return;
     }
@@ -318,8 +390,11 @@ void AppController::loadLatestBackup()
     m_backupManifestPath = QFileInfo::exists(manifestCandidate) ? manifestCandidate : QString();
     setReadProgress(100);
     setStatus(
-        QStringLiteral("OFFLINE BACKUP LOADED // %1 CHANNELS // SHA256 %2")
+        QStringLiteral("OFFLINE BACKUP LOADED // %1 CH // %2 ZONES // %3 SCAN // %4 RXG // SHA256 %5")
             .arg(m_channelCount)
+            .arg(m_zones.size())
+            .arg(m_scanLists.size())
+            .arg(m_rxGroups.size())
             .arg(m_backupSha256.left(16).toUpper()));
     emit backupChanged();
 }
@@ -390,6 +465,7 @@ void AppController::clearBackupState()
     m_backupManifestPath.clear();
     m_backupSha256.clear();
     clearChannelState();
+    clearCodeplugState();
 
     if (changed) {
         emit backupChanged();
@@ -406,6 +482,23 @@ void AppController::clearChannelState()
 
     if (changed) {
         emit channelsChanged();
+    }
+}
+
+void AppController::clearCodeplugState()
+{
+    const bool changed = m_codeplugReady
+        || !m_zones.isEmpty()
+        || !m_scanLists.isEmpty()
+        || !m_rxGroups.isEmpty();
+
+    m_zones.clear();
+    m_scanLists.clear();
+    m_rxGroups.clear();
+    m_codeplugReady = false;
+
+    if (changed) {
+        emit codeplugChanged();
     }
 }
 
@@ -467,7 +560,77 @@ bool AppController::applyDecodedChannels(const DM32ChannelDecodeResult &decoded,
     return true;
 }
 
-bool AppController::loadChannelsFromBackup(const QString &path, QString &error)
+bool AppController::applyDecodedCodeplug(const DM32CodeplugDecodeResult &decoded, QString &error)
 {
-    return applyDecodedChannels(DM32ChannelDecoder::decodeFile(path), error);
+    error.clear();
+    if (!decoded.ok) {
+        clearCodeplugState();
+        error = decoded.error;
+        return false;
+    }
+
+    QVariantList zones;
+    zones.reserve(decoded.zones.size());
+    for (const DM32ZoneInfo &zone : decoded.zones) {
+        QVariantMap item;
+        item.insert(QStringLiteral("number"), zone.number);
+        item.insert(QStringLiteral("name"), zone.name);
+        item.insert(QStringLiteral("channelCount"), zone.channels.size());
+        item.insert(QStringLiteral("channels"), integerList(zone.channels));
+        item.insert(QStringLiteral("channelsText"), joinedIntegers(zone.channels));
+        zones.push_back(item);
+    }
+
+    QVariantList scanLists;
+    scanLists.reserve(decoded.scanLists.size());
+    for (const DM32ScanListInfo &scan : decoded.scanLists) {
+        QVariantMap item;
+        item.insert(QStringLiteral("number"), scan.number);
+        item.insert(QStringLiteral("name"), scan.name);
+        item.insert(QStringLiteral("channelCount"), scan.channels.size());
+        item.insert(QStringLiteral("channels"), integerList(scan.channels));
+        item.insert(QStringLiteral("channelsText"), joinedIntegers(scan.channels));
+        item.insert(QStringLiteral("hangTime"), QString::number(scan.hangTimeSeconds, 'f', 1) + QStringLiteral("s"));
+        item.insert(QStringLiteral("priority1"), channelSelectorText(scan.priority1Type, scan.priority1Channel));
+        item.insert(QStringLiteral("priority2"), channelSelectorText(scan.priority2Type, scan.priority2Channel));
+        item.insert(QStringLiteral("designatedTx"), channelSelectorText(scan.designatedTxMode, scan.designatedTxChannel));
+        scanLists.push_back(item);
+    }
+
+    QVariantList rxGroups;
+    rxGroups.reserve(decoded.rxGroups.size());
+    for (const DM32RxGroupInfo &group : decoded.rxGroups) {
+        QVariantMap item;
+        item.insert(QStringLiteral("number"), group.number);
+        item.insert(QStringLiteral("name"), group.name);
+        item.insert(QStringLiteral("memberCount"), group.memberIds.size());
+        item.insert(QStringLiteral("members"), idList(group.memberIds));
+        item.insert(QStringLiteral("membersText"), joinedIds(group.memberIds));
+        rxGroups.push_back(item);
+    }
+
+    m_zones = zones;
+    m_scanLists = scanLists;
+    m_rxGroups = rxGroups;
+    m_codeplugReady = true;
+    emit codeplugChanged();
+    return true;
+}
+
+bool AppController::loadCodeplugFromBackup(const QString &path, QString &error)
+{
+    error.clear();
+
+    const auto channels = DM32ChannelDecoder::decodeFile(path);
+    if (!applyDecodedChannels(channels, error)) {
+        return false;
+    }
+
+    const auto codeplug = DM32CodeplugDecoder::decodeFile(path);
+    if (!applyDecodedCodeplug(codeplug, error)) {
+        clearChannelState();
+        return false;
+    }
+
+    return true;
 }
