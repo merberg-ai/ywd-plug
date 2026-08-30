@@ -1,5 +1,4 @@
-#include <QDir>
-#include <QFileInfo>
+#include <QFile>
 #include <QGuiApplication>
 #include <QIcon>
 #include <QQmlApplicationEngine>
@@ -22,14 +21,11 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName(QStringLiteral("YWD-Plug"));
     QCoreApplication::setApplicationVersion(QStringLiteral("0.1.0-dev"));
 
-    const QDir appDir(QCoreApplication::applicationDirPath());
-    const QString brandingImagePath = appDir.filePath(QStringLiteral("branding/ywd-plug-win-logo1.png"));
-    const QString brandingIconPath = appDir.filePath(QStringLiteral("branding/ywd-plug-win.ico"));
-    const QUrl brandingImageUrl = QUrl::fromLocalFile(brandingImagePath);
+    const QString brandingImageResource = QStringLiteral(":/branding/ywd-plug-win-logo1.png");
+    const QString brandingIconResource = QStringLiteral(":/branding/ywd-plug-win.ico");
+    const QUrl brandingImageUrl(QStringLiteral("qrc:/branding/ywd-plug-win-logo1.png"));
 
-    if (QFileInfo::exists(brandingIconPath)) {
-        QGuiApplication::setWindowIcon(QIcon(brandingIconPath));
-    }
+    QGuiApplication::setWindowIcon(QIcon(brandingIconResource));
 
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
@@ -39,10 +35,10 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("appController"), &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("windowState"), &windowState);
     engine.rootContext()->setContextProperty(QStringLiteral("brandingImageUrl"), brandingImageUrl);
-    engine.rootContext()->setContextProperty(QStringLiteral("brandingImagePath"), brandingImagePath);
-    engine.rootContext()->setContextProperty(QStringLiteral("brandingImageExists"), QFileInfo::exists(brandingImagePath));
-    engine.rootContext()->setContextProperty(QStringLiteral("brandingIconPath"), brandingIconPath);
-    engine.rootContext()->setContextProperty(QStringLiteral("brandingIconExists"), QFileInfo::exists(brandingIconPath));
+    engine.rootContext()->setContextProperty(QStringLiteral("brandingImagePath"), brandingImageResource);
+    engine.rootContext()->setContextProperty(QStringLiteral("brandingImageExists"), QFile::exists(brandingImageResource));
+    engine.rootContext()->setContextProperty(QStringLiteral("brandingIconPath"), brandingIconResource);
+    engine.rootContext()->setContextProperty(QStringLiteral("brandingIconExists"), QFile::exists(brandingIconResource));
 
     QObject::connect(
         &engine,
