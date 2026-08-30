@@ -30,12 +30,15 @@ qt_standard_project_setup(REQUIRES 6.8)
 add_executable(ywd_icon_builder
     tools/IconBuilder.cpp
 )
+set_target_properties(ywd_icon_builder PROPERTIES
+    AUTOMOC OFF
+    AUTORCC OFF
+    AUTOUIC OFF
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+)
 target_link_libraries(ywd_icon_builder PRIVATE
     windowscodecs
     ole32
-)
-set_property(TARGET ywd_icon_builder PROPERTY
-    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
 )
 if(MSVC)
     target_compile_options(ywd_icon_builder PRIVATE /W4 /permissive- /Zc:__cplusplus)
