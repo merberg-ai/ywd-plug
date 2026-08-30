@@ -1,5 +1,4 @@
 #include <QGuiApplication>
-#include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
@@ -18,10 +17,6 @@ int main(int argc, char *argv[])
     QCoreApplication::setOrganizationDomain(QStringLiteral("kj6ywd.net"));
     QCoreApplication::setApplicationName(QStringLiteral("YWD-Plug"));
     QCoreApplication::setApplicationVersion(QStringLiteral("0.1.0-dev"));
-
-    // Normal Qt runtime icon. The same visual identity is also embedded in the
-    // PE through the Windows .rc resource for Explorer/taskbar/Alt+Tab usage.
-    QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/branding/ywd-plug-win.ico")));
 
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
