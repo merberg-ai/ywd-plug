@@ -22,27 +22,35 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
 
 qt_standard_project_setup(REQUIRES 6.8)
 
-# The user-supplied ICO is a valid modern PNG-frame ICO, but the Windows SDK
-# resource compiler on the test workstation rejects PNG-compressed icon frames.
-# Build a classic 32-bit DIB ICO from the same artwork, then embed that generated
-# ICO in the PE through the normal Windows .rc resource path.
+# The supplied ICO is valid and uses modern PNG-compressed frames. The Windows
+# SDK resource compiler on the test workstation rejects those frames, so build
+# a classic 32-bit DIB copy from the SAME ICO using only Win32/WIC. The helper
+# is statically linked to the MSVC runtime and depends only on Windows system
+# libraries, so it can run before Qt deployment.
 add_executable(ywd_icon_builder
     tools/IconBuilder.cpp
 )
 target_link_libraries(ywd_icon_builder PRIVATE
-    Qt6::Core
-    Qt6::Gui
+    windowscodecs
+    ole32
 )
+set_property(TARGET ywd_icon_builder PROPERTY
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+)
+if(MSVC)
+    target_compile_options(ywd_icon_builder PRIVATE /W4 /permissive- /Zc:__cplusplus)
+    target_compile_definitions(ywd_icon_builder PRIVATE UNICODE _UNICODE)
+endif()
 
 set(YWD_PLUG_RC_ICON "${CMAKE_CURRENT_BINARY_DIR}/ywd-plug-win-rc.ico")
 add_custom_command(
     OUTPUT "${YWD_PLUG_RC_ICON}"
     COMMAND $<TARGET_FILE:ywd_icon_builder>
-        "${CMAKE_CURRENT_SOURCE_DIR}/resources/ywd-plug-win-logo1.png"
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/ywd-plug-win.ico"
         "${YWD_PLUG_RC_ICON}"
     DEPENDS
         ywd_icon_builder
-        "${CMAKE_CURRENT_SOURCE_DIR}/resources/ywd-plug-win-logo1.png"
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/ywd-plug-win.ico"
     COMMENT "Generating Win32-compatible YWD-Plug application icon"
     VERBATIM
 )
