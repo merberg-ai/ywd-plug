@@ -6,39 +6,41 @@ This is a real native application. It does not embed the browser YWD-Plug UI and
 
 ## Current phase
 
-Milestone 1 is checkpointed at:
+Major recovery checkpoints include:
 
 ```text
 checkpoint/dev-win-m1
-```
-
-The hardware-validated native channel decoder / offline backup state is checkpointed at:
-
-```text
 checkpoint/dev-win-m2b
+checkpoint/dev-win-m3-serial
+checkpoint/dev-win-m4-sidebar
 ```
 
-`dev-win` is now in **Phase 3: selective live READ RADIO**.
+`dev-win` is now in **Phase 5: native branding + smart referenced Contacts**.
 
-Phase 3 includes:
+The current read-only native CPS includes:
 
 1. Native `PSEARCH` / `PASSSTA` / `SYSINFO` handshake.
-2. Firmware V-frame `0x01` and memory-layout V-frame `0x0A` reads.
+2. Proven DTR-reset / 400 ms reopen lifecycle for repeated radio sessions.
 3. PROGRAM-mode entry using the browser-proven read-only sequence.
-4. Metadata discovery by reading only byte `0xFFF` from each 4 KiB config block.
-5. Channel-count read from metadata block `0x12`.
-6. Exact selection of only the channel blocks required by the current channel count.
-7. TX-contact block reads (`0x42`, and `0x43` when required).
-8. In-memory native C++ channel decoding directly into the Channels workspace.
-9. A measured **READ RADIO** path reporting transferred bytes, discovered blocks, data blocks, and elapsed time.
-10. The existing exhaustive **RAW BACKUP** path, SHA-256 manifest, and **LOAD BACKUP** offline workflow.
+4. Fast metadata discovery across the 4 KiB config-block map.
+5. Selective live reads for Channels, Zones, Scan Lists, and RX Groups.
+6. Native C++ decoders and dedicated sidebar workspaces for those codeplug sections.
+7. Smart contact-memory discovery using contact V-frames `0x0F` / `0x10`.
+8. Selective loading of only contact pages referenced by channel TX-contact mappings.
+9. Channel TX-contact name resolution after a successful live read.
+10. A dedicated referenced Contacts workspace.
+11. The supplied YWD-Plug Windows icon compiled into the native executable.
+12. The supplied YWD-Plug artwork integrated into the startup POST/splash and compact main masthead.
+13. The exhaustive **RAW BACKUP** path, SHA-256 manifest, and offline **LOAD BACKUP** workflow.
 
 **Native radio-memory writes remain unavailable and editing remains locked.**
 
 See:
 
 - [`PHASE2-READBACK.md`](PHASE2-READBACK.md) — exhaustive raw backup validation
-- [`PHASE3-SELECTIVE-READ.md`](PHASE3-SELECTIVE-READ.md) — normal fast READ RADIO validation
+- [`PHASE3-SELECTIVE-READ.md`](PHASE3-SELECTIVE-READ.md) — fast/selective READ RADIO validation
+- [`PHASE4-CODEPLUG-STRUCTURES.md`](PHASE4-CODEPLUG-STRUCTURES.md) — Channels/Zones/Scan Lists/RX Groups
+- [`PHASE5-BRANDING-CONTACTS.md`](PHASE5-BRANDING-CONTACTS.md) — Windows branding + selective referenced Contacts
 
 ## Stack
 
@@ -46,6 +48,7 @@ See:
 - Qt 6.8+ Core / GUI / Quick / Quick Controls / Concurrent
 - Qt Quick / QML
 - Native Win32 COM transport (`CreateFile`, `SetCommState`, `ReadFile`, `WriteFile`)
+- Native Windows executable resources (`.rc` / `.ico`)
 - CMake
 - Ninja
 - MSVC 2022 x64
@@ -62,19 +65,23 @@ BUILD.cmd
 RUN.cmd
 ```
 
-For the normal Phase-3 radio test:
+For the normal Phase-5 radio test:
 
-1. Select the correct COM port.
-2. Click **READ RADIO** directly; Probe is optional.
-3. Watch metadata discovery and selective block-read progress.
-4. On success, the Channels workspace should populate from the live radio.
-5. Compare the final byte count / elapsed time with the exhaustive RAW BACKUP path.
+1. Confirm the supplied YWD-Plug icon is used by the native executable/window/taskbar.
+2. Confirm the branded POST splash appears and hands off normally.
+3. Select the correct COM port.
+4. Click **READ RADIO** directly; Probe is optional.
+5. Verify Channels, Zones, Scan Lists, and RX Groups still match the known codeplug.
+6. If referenced digital contacts resolve, **Contacts** becomes available in the sidebar.
+7. Open Contacts and compare a few names/DMR IDs with the source radio/browser codeplug.
+8. Open Channels and verify TX-contact names replace bare indexes where available.
+9. Run another Probe / READ RADIO cycle to confirm repeated-session behavior remains stable.
 
-For the known 88-channel test codeplug, the expected payload is about **12,490 bytes** rather than the 819,200-byte raw image.
+Contact enrichment is deliberately optional. A firmware/contact-region incompatibility should produce a contact warning while leaving the core codeplug read usable.
 
 ## Raw backups
 
-**RAW BACKUP** remains the exhaustive safety/diagnostic operation. Successful raw backups are stored under:
+**RAW BACKUP** remains the exhaustive safety/diagnostic operation for the radio's config-block region. Successful raw backups are stored under:
 
 ```text
 %USERPROFILE%\Documents\YWD-Plug Backups\
@@ -82,7 +89,7 @@ For the known 88-channel test codeplug, the expected payload is about **12,490 b
 
 Each raw backup creates a `.bin` image and a `.json` manifest.
 
-**LOAD BACKUP** decodes the newest saved image without touching the radio.
+**LOAD BACKUP** decodes the newest saved config image without touching the radio. Because the digital contact database lives in a separate memory region, an existing raw config backup can populate Channels/Zones/Scan Lists/RX Groups but **does not contain the separate contact database**. Contacts therefore require a live `READ RADIO` session in Phase 5.
 
 ## Install
 
@@ -140,8 +147,20 @@ native/windows/
 ├── CHECKPOINT-M1.md
 ├── PHASE2-READBACK.md
 ├── PHASE3-SELECTIVE-READ.md
+├── PHASE4-CODEPLUG-STRUCTURES.md
+├── PHASE5-BRANDING-CONTACTS.md
 ├── qml/
+│   ├── ConnectionPage.qml
+│   ├── ChannelsPage.qml
+│   ├── ZonesPage.qml
+│   ├── ScanListsPage.qml
+│   ├── ContactsPage.qml
+│   ├── RXGroupsPage.qml
+│   └── SplashWindow.qml
 ├── resources/
+│   ├── ywd-plug-win.ico
+│   ├── ywd-plug-win-logo1.png
+│   └── ywd-plug-win.rc
 └── src/
     ├── app/
     ├── serial/
@@ -151,21 +170,23 @@ native/windows/
             ├── DM32Connection.*
             ├── DM32SelectiveRead.cpp
             ├── DM32MemoryBlock.h
-            └── DM32ChannelDecoder.*
+            ├── DM32ContactBlock.h
+            ├── DM32ChannelDecoder.*
+            ├── DM32CodeplugDecoder.*
+            └── DM32ContactDecoder.*
 ```
 
 ## Next validation gate
 
-Phase 3 must be hardware-proven before expanding the CPS read model.
+Phase 5 must now be compiled and hardware-tested on the Windows/DM-32UV setup.
 
-After selective READ RADIO is validated:
+After branding and referenced-contact readback are validated:
 
-1. Reuse the metadata map + selected-block reader for Zones.
-2. Add Scan Lists.
-3. Add RX Groups.
-4. Add Contacts / Talk Groups and DMR Radio IDs.
-5. Add Settings / Display.
-6. Checkpoint the complete read-only native CPS.
-7. Only then begin binary round-trip encode verification and the later radio-write milestone.
+1. add read-only Radio IDs;
+2. add Settings / Display structures;
+3. complete the native read-only CPS surface;
+4. checkpoint the complete read-only state;
+5. add native encoders and prove binary round-trip equality **without writing the radio**;
+6. only after protected round-trip validation, design the later radio-write milestone.
 
-Radio-memory writes remain a later milestone after native read/decode/encode round-trip validation.
+Radio-memory writes remain a later milestone.
