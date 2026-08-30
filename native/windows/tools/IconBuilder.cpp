@@ -6,11 +6,12 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
-#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <vector>
 
 using Microsoft::WRL::ComPtr;
@@ -44,42 +45,85 @@ bool failed(HRESULT hr, const wchar_t *what)
     return true;
 }
 
-bool renderSquareIconFrame(
-    IWICImagingFactory *factory,
-    IWICBitmapFrameDecode *sourceFrame,
-    UINT sourceWidth,
-    UINT sourceHeight,
-    UINT targetSize,
-    std::vector<std::uint8_t> &squarePixels)
+ComPtr<IWICBitmapFrameDecode> selectBestFrame(IWICBitmapDecoder *decoder, UINT requestedSize)
 {
-    if (!factory || !sourceFrame || sourceWidth == 0u || sourceHeight == 0u || targetSize == 0u) {
+    UINT frameCount = 0u;
+    if (FAILED(decoder->GetFrameCount(&frameCount)) || frameCount == 0u) {
+        return {};
+    }
+
+    ComPtr<IWICBitmapFrameDecode> bestFrame;
+    unsigned long bestScore = std::numeric_limits<unsigned long>::max();
+
+    for (UINT i = 0u; i < frameCount; ++i) {
+        ComPtr<IWICBitmapFrameDecode> frame;
+        if (FAILED(decoder->GetFrame(i, &frame))) {
+            continue;
+        }
+
+        UINT width = 0u;
+        UINT height = 0u;
+        if (FAILED(frame->GetSize(&width, &height))) {
+            continue;
+        }
+
+        const auto widthDistance = static_cast<unsigned long>(std::abs(
+            static_cast<long long>(width) - static_cast<long long>(requestedSize)));
+        const auto heightDistance = static_cast<unsigned long>(std::abs(
+            static_cast<long long>(height) - static_cast<long long>(requestedSize)));
+        const unsigned long score = widthDistance + heightDistance;
+
+        if (score < bestScore) {
+            bestScore = score;
+            bestFrame = frame;
+        }
+        if (width == requestedSize && height == requestedSize) {
+            break;
+        }
+    }
+
+    return bestFrame;
+}
+
+bool decodeFrame(
+    IWICImagingFactory *factory,
+    IWICBitmapDecoder *decoder,
+    UINT size,
+    std::vector<std::uint8_t> &pixels)
+{
+    ComPtr<IWICBitmapFrameDecode> frame = selectBestFrame(decoder, size);
+    if (!frame) {
+        std::wcerr << L"[XX] No usable ICO frame found for " << size << L"x" << size << L"\n";
         return false;
     }
 
-    const double scale = std::min(
-        static_cast<double>(targetSize) / static_cast<double>(sourceWidth),
-        static_cast<double>(targetSize) / static_cast<double>(sourceHeight));
+    UINT frameWidth = 0u;
+    UINT frameHeight = 0u;
+    if (failed(frame->GetSize(&frameWidth, &frameHeight), L"Read ICO frame size")) {
+        return false;
+    }
 
-    const UINT scaledWidth = std::max<UINT>(
-        1u,
-        static_cast<UINT>(static_cast<double>(sourceWidth) * scale + 0.5));
-    const UINT scaledHeight = std::max<UINT>(
-        1u,
-        static_cast<UINT>(static_cast<double>(sourceHeight) * scale + 0.5));
-
+    ComPtr<IWICBitmapSource> source;
     ComPtr<IWICBitmapScaler> scaler;
-    if (failed(factory->CreateBitmapScaler(&scaler), L"Create WIC scaler")) {
-        return false;
-    }
 
-    if (failed(
-            scaler->Initialize(
-                sourceFrame,
-                scaledWidth,
-                scaledHeight,
-                WICBitmapInterpolationModeFant),
-            L"Scale branding PNG")) {
-        return false;
+    if (frameWidth == size && frameHeight == size) {
+        HRESULT hr = frame->QueryInterface(IID_PPV_ARGS(&source));
+        if (failed(hr, L"Use ICO frame as bitmap source")) {
+            return false;
+        }
+    } else {
+        if (failed(factory->CreateBitmapScaler(&scaler), L"Create WIC scaler")) {
+            return false;
+        }
+        if (failed(
+                scaler->Initialize(frame.Get(), size, size, WICBitmapInterpolationModeFant),
+                L"Scale ICO frame")) {
+            return false;
+        }
+        HRESULT hr = scaler->QueryInterface(IID_PPV_ARGS(&source));
+        if (failed(hr, L"Use scaled ICO frame as bitmap source")) {
+            return false;
+        }
     }
 
     ComPtr<IWICFormatConverter> converter;
@@ -89,47 +133,26 @@ bool renderSquareIconFrame(
 
     if (failed(
             converter->Initialize(
-                scaler.Get(),
+                source.Get(),
                 GUID_WICPixelFormat32bppBGRA,
                 WICBitmapDitherTypeNone,
                 nullptr,
                 0.0,
                 WICBitmapPaletteTypeCustom),
-            L"Convert branding PNG to 32-bit BGRA")) {
+            L"Convert ICO frame to 32-bit BGRA")) {
         return false;
     }
 
-    const UINT scaledStride = scaledWidth * 4u;
-    std::vector<std::uint8_t> scaledPixels(
-        static_cast<std::size_t>(scaledStride) * scaledHeight);
-
+    const UINT stride = size * 4u;
+    pixels.resize(static_cast<std::size_t>(stride) * size);
     if (failed(
             converter->CopyPixels(
                 nullptr,
-                scaledStride,
-                static_cast<UINT>(scaledPixels.size()),
-                scaledPixels.data()),
-            L"Copy branding pixels")) {
+                stride,
+                static_cast<UINT>(pixels.size()),
+                pixels.data()),
+            L"Copy converted ICO pixels")) {
         return false;
-    }
-
-    const UINT targetStride = targetSize * 4u;
-    squarePixels.assign(
-        static_cast<std::size_t>(targetStride) * targetSize,
-        0u);
-
-    const UINT offsetX = (targetSize - scaledWidth) / 2u;
-    const UINT offsetY = (targetSize - scaledHeight) / 2u;
-
-    for (UINT y = 0; y < scaledHeight; ++y) {
-        const auto sourceOffset = static_cast<std::size_t>(y) * scaledStride;
-        const auto targetOffset =
-            static_cast<std::size_t>(offsetY + y) * targetStride
-            + static_cast<std::size_t>(offsetX) * 4u;
-        std::memcpy(
-            squarePixels.data() + targetOffset,
-            scaledPixels.data() + sourceOffset,
-            scaledStride);
     }
 
     return true;
@@ -147,11 +170,11 @@ std::vector<std::uint8_t> buildClassicDib(
     std::vector<std::uint8_t> dib;
     dib.reserve(40u + xorBytes + maskBytes);
 
-    appendU32(dib, 40u);              // BITMAPINFOHEADER size
-    appendU32(dib, size);             // width
-    appendU32(dib, size * 2u);        // XOR + AND mask height
-    appendU16(dib, 1u);               // planes
-    appendU16(dib, 32u);              // bits per pixel
+    appendU32(dib, 40u);
+    appendU32(dib, size);
+    appendU32(dib, size * 2u);
+    appendU16(dib, 1u);
+    appendU16(dib, 32u);
     appendU32(dib, BI_RGB);
     appendU32(dib, xorBytes);
     appendU32(dib, 0u);
@@ -159,7 +182,6 @@ std::vector<std::uint8_t> buildClassicDib(
     appendU32(dib, 0u);
     appendU32(dib, 0u);
 
-    // WIC gives us top-down BGRA. ICO DIB rows are bottom-up BGRA.
     for (int y = static_cast<int>(size) - 1; y >= 0; --y) {
         const auto rowStart = static_cast<std::size_t>(y) * stride;
         dib.insert(
@@ -168,16 +190,14 @@ std::vector<std::uint8_t> buildClassicDib(
             pixels.begin() + static_cast<std::ptrdiff_t>(rowStart + stride));
     }
 
-    // Legacy 1-bpp AND mask derived from alpha.
     std::vector<std::uint8_t> mask(maskBytes, 0u);
-    for (UINT outputRow = 0; outputRow < size; ++outputRow) {
+    for (UINT outputRow = 0u; outputRow < size; ++outputRow) {
         const UINT sourceY = size - 1u - outputRow;
-        for (UINT x = 0; x < size; ++x) {
+        for (UINT x = 0u; x < size; ++x) {
             const auto pixelOffset =
                 static_cast<std::size_t>(sourceY) * stride
                 + static_cast<std::size_t>(x) * 4u;
-            const std::uint8_t alpha = pixels[pixelOffset + 3u];
-            if (alpha < 128u) {
+            if (pixels[pixelOffset + 3u] < 128u) {
                 const auto byteOffset =
                     static_cast<std::size_t>(outputRow) * maskStride
                     + (x / 8u);
@@ -186,7 +206,6 @@ std::vector<std::uint8_t> buildClassicDib(
         }
     }
     dib.insert(dib.end(), mask.begin(), mask.end());
-
     return dib;
 }
 
@@ -225,13 +244,11 @@ bool writeIcon(
     output.write(
         reinterpret_cast<const char *>(directory.data()),
         static_cast<std::streamsize>(directory.size()));
-
     for (const auto &frame : frames) {
         output.write(
             reinterpret_cast<const char *>(frame.data()),
             static_cast<std::streamsize>(frame.size()));
     }
-
     return output.good();
 }
 
@@ -240,7 +257,7 @@ bool writeIcon(
 int wmain(int argc, wchar_t *argv[])
 {
     if (argc != 3) {
-        std::wcerr << L"usage: ywd_icon_builder <source-png> <output-ico>\n";
+        std::wcerr << L"usage: ywd_icon_builder <source-ico> <output-ico>\n";
         return 2;
     }
 
@@ -256,6 +273,7 @@ int wmain(int argc, wchar_t *argv[])
 
     int exitCode = 0;
 
+    // All COM objects MUST be destroyed before CoUninitialize().
     {
         ComPtr<IWICImagingFactory> factory;
         HRESULT hr = CoCreateInstance(
@@ -263,6 +281,7 @@ int wmain(int argc, wchar_t *argv[])
             nullptr,
             CLSCTX_INPROC_SERVER,
             IID_PPV_ARGS(&factory));
+
         if (failed(hr, L"Create WIC imaging factory")) {
             exitCode = 4;
         } else {
@@ -274,48 +293,26 @@ int wmain(int argc, wchar_t *argv[])
                 WICDecodeMetadataCacheOnLoad,
                 &decoder);
 
-            if (failed(hr, L"Open branding PNG")) {
+            if (failed(hr, L"Open source ICO")) {
                 exitCode = 5;
             } else {
-                ComPtr<IWICBitmapFrameDecode> sourceFrame;
-                hr = decoder->GetFrame(0u, &sourceFrame);
-                if (failed(hr, L"Read branding PNG frame")) {
-                    exitCode = 6;
-                } else {
-                    UINT sourceWidth = 0u;
-                    UINT sourceHeight = 0u;
-                    hr = sourceFrame->GetSize(&sourceWidth, &sourceHeight);
-                    if (failed(hr, L"Read branding PNG dimensions") || sourceWidth == 0u || sourceHeight == 0u) {
+                std::array<std::vector<std::uint8_t>, kIconSizes.size()> frames;
+                for (std::size_t i = 0; i < kIconSizes.size(); ++i) {
+                    std::vector<std::uint8_t> pixels;
+                    if (!decodeFrame(factory.Get(), decoder.Get(), kIconSizes[i], pixels)) {
+                        exitCode = 6;
+                        break;
+                    }
+                    frames[i] = buildClassicDib(pixels, kIconSizes[i]);
+                }
+
+                if (exitCode == 0) {
+                    if (!writeIcon(outputPath, frames)) {
                         exitCode = 7;
                     } else {
-                        std::array<std::vector<std::uint8_t>, kIconSizes.size()> frames;
-                        bool renderOk = true;
-
-                        for (std::size_t i = 0; i < kIconSizes.size(); ++i) {
-                            std::vector<std::uint8_t> pixels;
-                            if (!renderSquareIconFrame(
-                                    factory.Get(),
-                                    sourceFrame.Get(),
-                                    sourceWidth,
-                                    sourceHeight,
-                                    kIconSizes[i],
-                                    pixels)) {
-                                renderOk = false;
-                                exitCode = 8;
-                                break;
-                            }
-                            frames[i] = buildClassicDib(pixels, kIconSizes[i]);
-                        }
-
-                        if (renderOk) {
-                            if (!writeIcon(outputPath, frames)) {
-                                exitCode = 9;
-                            } else {
-                                std::wcout << L"[OK] Generated classic Win32 ICO from PNG "
-                                           << inputPath.wstring() << L" -> "
-                                           << outputPath.wstring() << L"\n";
-                            }
-                        }
+                        std::wcout << L"[OK] Generated classic Win32 ICO from "
+                                   << inputPath.wstring() << L" -> "
+                                   << outputPath.wstring() << L"\n";
                     }
                 }
             }
