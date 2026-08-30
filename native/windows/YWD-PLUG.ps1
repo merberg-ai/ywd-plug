@@ -13,6 +13,7 @@ $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BuildDir = Join-Path $ProjectRoot 'build'
 $DistDir = Join-Path $ProjectRoot 'dist'
+$BuildStamp = Join-Path $DistDir 'build-info.txt'
 $InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\YWD-Plug'
 $BuildType = if ($DebugBuild) { 'Debug' } else { 'Release' }
 $script:QtRoot = $null
@@ -43,6 +44,55 @@ function Write-Ok([string]$Message)   { Write-Host ('[OK] ' + $Message) -Foregro
 function Write-Warn([string]$Message) { Write-Host ('[!!] ' + $Message) -ForegroundColor Yellow }
 function Write-Fail([string]$Message) { Write-Host ('[XX] ' + $Message) -ForegroundColor Red }
 function Write-Info([string]$Message) { Write-Host ('     ' + $Message) -ForegroundColor Gray }
+
+function Get-GitIdentity {
+    $identity = [ordered]@{ Branch = ''; Sha = ''; Dirty = $false }
+    if (-not (Get-Command git.exe -ErrorAction SilentlyContinue)) { return $identity }
+
+    try {
+        $branch = (& git.exe -C $ProjectRoot rev-parse --abbrev-ref HEAD 2>$null | Select-Object -First 1)
+        $sha = (& git.exe -C $ProjectRoot rev-parse HEAD 2>$null | Select-Object -First 1)
+        $dirty = (& git.exe -C $ProjectRoot status --porcelain 2>$null)
+        if ($branch) { $identity.Branch = $branch.Trim() }
+        if ($sha) { $identity.Sha = $sha.Trim() }
+        $identity.Dirty = [bool]$dirty
+    } catch {
+        # Build/run still works outside a Git checkout; provenance is simply unavailable.
+    }
+    return $identity
+}
+
+function Write-BuildStamp {
+    $identity = Get-GitIdentity
+    @(
+        'YWD-Plug native staged build'
+        "branch=$($identity.Branch)"
+        "sha=$($identity.Sha)"
+        "dirty=$($identity.Dirty)"
+        "buildType=$BuildType"
+        "builtUtc=$([DateTime]::UtcNow.ToString('o'))"
+    ) | Set-Content -Path $BuildStamp -Encoding UTF8
+}
+
+function Test-StagedBuildCurrent {
+    $exe = Join-Path $DistDir 'YWD-Plug.exe'
+    if (-not (Test-Path $exe) -or -not (Test-Path $BuildStamp)) { return $false }
+
+    $identity = Get-GitIdentity
+    if (-not $identity.Sha) { return $true }
+
+    $stamp = Get-Content $BuildStamp -ErrorAction SilentlyContinue
+    $stagedShaLine = $stamp | Where-Object { $_ -like 'sha=*' } | Select-Object -First 1
+    $stagedDirtyLine = $stamp | Where-Object { $_ -like 'dirty=*' } | Select-Object -First 1
+    if (-not $stagedShaLine) { return $false }
+
+    $stagedSha = $stagedShaLine.Substring(4).Trim()
+    $stagedDirty = if ($stagedDirtyLine) { $stagedDirtyLine.Substring(6).Trim() } else { 'False' }
+
+    if ($stagedSha -ne $identity.Sha) { return $false }
+    if ($identity.Dirty -and $stagedDirty -ne 'True') { return $false }
+    return $true
+}
 
 function Find-VsDevCmd {
     $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
@@ -164,6 +214,13 @@ function Invoke-Build {
 
     Test-Prerequisites -AllowInstall:$false
 
+    # Never leave a previous portable build looking valid while a new compile is in progress.
+    # If configure/compile/deploy fails, RUN must not silently launch yesterday's binary.
+    if (Test-Path $DistDir) {
+        Write-Step 'Invalidating previous staged build...'
+        Remove-Item $DistDir -Recurse -Force
+    }
+
     New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
     Write-Step 'Configuring CMake...'
     & cmake.exe -S $ProjectRoot -B $BuildDir -G Ninja "-DCMAKE_BUILD_TYPE=$BuildType" "-DCMAKE_PREFIX_PATH=$script:QtRoot"
@@ -178,7 +235,6 @@ function Invoke-Build {
     $exe = Join-Path $BuildDir 'YWD-Plug.exe'
     if (-not (Test-Path $exe)) { throw "Build completed but $exe was not found." }
 
-    if (Test-Path $DistDir) { Remove-Item $DistDir -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
     Copy-Item $exe (Join-Path $DistDir 'YWD-Plug.exe') -Force
 
@@ -188,9 +244,17 @@ function Invoke-Build {
     if ($BuildType -eq 'Debug') { $deployArgs += '--debug' } else { $deployArgs += '--release' }
     $deployArgs += (Join-Path $DistDir 'YWD-Plug.exe')
     & $deploy @deployArgs
-    if ($LASTEXITCODE -ne 0) { throw 'windeployqt failed.' }
+    if ($LASTEXITCODE -ne 0) {
+        if (Test-Path $DistDir) { Remove-Item $DistDir -Recurse -Force }
+        throw 'windeployqt failed; staged build removed so RUN cannot launch stale/incomplete output.'
+    }
 
+    Write-BuildStamp
+    $identity = Get-GitIdentity
     Write-Ok "Portable build staged at: $DistDir"
+    if ($identity.Sha) {
+        Write-Ok "Staged provenance: $($identity.Branch) @ $($identity.Sha.Substring(0, [Math]::Min(12, $identity.Sha.Length)))"
+    }
 }
 
 function Invoke-Install {
@@ -198,8 +262,8 @@ function Invoke-Install {
     Write-Host ' INSTALL // CURRENT USER' -ForegroundColor Magenta
     Write-Host ''
 
-    if (-not (Test-Path (Join-Path $DistDir 'YWD-Plug.exe'))) {
-        Write-Warn 'No staged build found; building first.'
+    if (-not (Test-StagedBuildCurrent)) {
+        Write-Warn 'No current staged build found; building first.'
         Invoke-Build
         Write-Banner
         Write-Host ' INSTALL // CURRENT USER' -ForegroundColor Magenta
@@ -233,11 +297,21 @@ function Invoke-Install {
 }
 
 function Invoke-Run {
-    $exe = Join-Path $DistDir 'YWD-Plug.exe'
-    if (-not (Test-Path $exe)) {
-        Write-Warn 'No staged build found; building first.'
+    if (-not (Test-StagedBuildCurrent)) {
+        Write-Warn 'Staged build is missing or does not match the current source checkout; rebuilding first.'
         Invoke-Build
     }
+
+    $exe = Join-Path $DistDir 'YWD-Plug.exe'
+    if (-not (Test-Path $exe)) {
+        throw "No runnable staged build exists at $exe."
+    }
+
+    if (Test-Path $BuildStamp) {
+        Write-Info 'Staged build provenance:'
+        Get-Content $BuildStamp | ForEach-Object { Write-Info $_ }
+    }
+
     Write-Step 'Launching YWD-Plug...'
     Start-Process $exe
 }
