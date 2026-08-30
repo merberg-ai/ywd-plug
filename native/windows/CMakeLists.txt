@@ -63,15 +63,27 @@ qt_add_qml_module(ywd_plug
         resources/ywd-plug.svg
 )
 
-# Give branding files explicit aliases so QML/C++ paths are stable regardless
-# of the source-tree directory structure preserved by rcc.
-set_source_files_properties(resources/ywd-plug-win.ico PROPERTIES QT_RESOURCE_ALIAS "ywd-plug-win.ico")
-set_source_files_properties(resources/ywd-plug-win-logo1.png PROPERTIES QT_RESOURCE_ALIAS "ywd-plug-win-logo1.png")
-qt_add_resources(ywd_plug "branding_resources"
-    PREFIX "/branding"
-    FILES
-        resources/ywd-plug-win.ico
-        resources/ywd-plug-win-logo1.png
+# Branding is intentionally staged as ordinary files beside the executable.
+# This avoids rc.exe and qrc path quirks while keeping the source artwork intact.
+set(YWD_PLUG_BRANDING_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources")
+set(YWD_PLUG_DIST_BRANDING_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dist/branding")
+
+add_custom_command(TARGET ywd_plug POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:ywd_plug>/branding"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${YWD_PLUG_BRANDING_SOURCE_DIR}/ywd-plug-win-logo1.png"
+        "$<TARGET_FILE_DIR:ywd_plug>/branding/ywd-plug-win-logo1.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${YWD_PLUG_BRANDING_SOURCE_DIR}/ywd-plug-win.ico"
+        "$<TARGET_FILE_DIR:ywd_plug>/branding/ywd-plug-win.ico"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${YWD_PLUG_DIST_BRANDING_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${YWD_PLUG_BRANDING_SOURCE_DIR}/ywd-plug-win-logo1.png"
+        "${YWD_PLUG_DIST_BRANDING_DIR}/ywd-plug-win-logo1.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${YWD_PLUG_BRANDING_SOURCE_DIR}/ywd-plug-win.ico"
+        "${YWD_PLUG_DIST_BRANDING_DIR}/ywd-plug-win.ico"
+    COMMENT "Staging YWD-Plug branding assets"
 )
 
 target_include_directories(ywd_plug PRIVATE src)
