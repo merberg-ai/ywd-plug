@@ -1,6 +1,0 @@
-<RCC>
-    <qresource prefix="/branding">
-        <file alias="ywd-plug-win-logo1.png">ywd-plug-win-logo1.png</file>
-        <file alias="ywd-plug-win.ico">ywd-plug-win.ico</file>
-    </qresource>
-</RCC>
