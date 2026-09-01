@@ -15,14 +15,16 @@ constexpr quint8 ChannelFirstMetadata = 0x12;
 constexpr quint8 ChannelLastMetadata = 0x41;
 constexpr quint8 TxContactLowMetadata = 0x42;
 constexpr quint8 TxContactHighMetadata = 0x43;
+constexpr quint8 TalkGroupsMetadata = 0x44;
+constexpr quint8 TalkGroupCounterMetadata = 0x06;
 constexpr quint8 ScanListMetadata = 0x11;
 constexpr quint8 RxGroupsMetadata = 0x0F;
 constexpr quint8 ZoneFirstMetadata = 0x5C;
 constexpr quint8 ZoneLastMetadata = 0x64;
+constexpr int TalkGroupCounterOffset = 0x1FF;
 constexpr int ChannelsInFirstBlock = 84;
 constexpr int ChannelsInFollowingBlock = 85;
 constexpr int MaximumChannels = 4000;
-constexpr int ContactsPerBlock = 44;
 
 quint8 byteValue(char value)
 {
@@ -393,6 +395,18 @@ QVector<int> referencedContactIds(int channelCount, const QVector<DM32MemoryBloc
     return result;
 }
 
+const DM32MemoryBlock *findBlockByMetadata(
+    const QVector<DM32MemoryBlock> &blocks,
+    quint8 metadata)
+{
+    for (const DM32MemoryBlock &block : blocks) {
+        if (block.metadata == metadata) {
+            return &block;
+        }
+    }
+    return nullptr;
+}
+
 struct DiscoveredBlock
 {
     quint32 address {0};
@@ -462,37 +476,11 @@ DM32SelectiveReadResult DM32Connection::readChannelsSelective(
         return result;
     }
 
-    progress(7, QStringLiteral("READ RADIO // QUERY CONTACT DATABASE MAP"));
-    QByteArray contactRangeFrame;
-    QString optionalContactError;
-    const bool haveContactRange = queryVFrame(port, 0x0F, contactRangeFrame, optionalContactError)
-        && contactRangeFrame.size() >= 8;
-    if (haveContactRange) {
-        result.contactBase = readUint32LE(contactRangeFrame, 0);
-        result.contactEnd = readUint32LE(contactRangeFrame, 4);
-        if (result.contactBase == 0 || result.contactEnd <= result.contactBase || result.contactEnd > 0x00FFFFFF) {
-            result.contactWarning = QStringLiteral("CONTACT RANGE INVALID // %1-%2")
-                                        .arg(hexAddress(result.contactBase), hexAddress(result.contactEnd));
-            result.contactBase = 0;
-            result.contactEnd = 0;
-        }
-    } else {
-        result.contactWarning = optionalContactError.isEmpty()
-            ? QStringLiteral("CONTACT RANGE V-FRAME 0x0F UNAVAILABLE")
-            : QStringLiteral("CONTACT RANGE UNAVAILABLE // %1").arg(optionalContactError);
-    }
-
-    QByteArray contactCapacityFrame;
-    QString optionalCapacityError;
-    if (queryVFrame(port, 0x10, contactCapacityFrame, optionalCapacityError)
-        && contactCapacityFrame.size() >= 4) {
-        const quint32 capacity = readUint32LE(contactCapacityFrame, 0);
-        if (capacity <= 1000000U) {
-            result.contactCapacity = static_cast<int>(capacity);
-        }
-    } else if (result.contactWarning.isEmpty() && !optionalCapacityError.isEmpty()) {
-        result.contactWarning = QStringLiteral("CONTACT CAPACITY UNAVAILABLE // %1").arg(optionalCapacityError);
-    }
+    // Channel TX-contact indexes refer to the normal codeplug Talk Groups table
+    // (metadata 0x44), not the large external digital-ID database advertised by
+    // V-frames 0x0F/0x10. Keep the whole Phase 5 read inside the proven config
+    // region and fetch 0x44 plus its counter block 0x06 below.
+    progress(7, QStringLiteral("READ RADIO // PREPARING CODEPLUG TALK GROUP TABLE"));
 
     progress(9, QStringLiteral("READ RADIO // ENTERING PROGRAM MODE // READ ONLY"));
     if (!enterProgrammingMode(port, result.error)) {
@@ -585,7 +573,7 @@ DM32SelectiveReadResult DM32Connection::readChannelsSelective(
         : 1 + ((remainingChannels + ChannelsInFollowingBlock - 1) / ChannelsInFollowingBlock);
 
     QVector<quint8> targetMetadata;
-    targetMetadata.reserve(requiredChannelBlocks + 13);
+    targetMetadata.reserve(requiredChannelBlocks + 15);
     for (int index = 0; index < requiredChannelBlocks; ++index) {
         const quint8 metadata = static_cast<quint8>(ChannelFirstMetadata + index);
         if (metadata > ChannelLastMetadata || !metadataAddresses.contains(metadata)) {
@@ -602,6 +590,12 @@ DM32SelectiveReadResult DM32Connection::readChannelsSelective(
     }
     if (result.channelCount >= 2048 && metadataAddresses.contains(TxContactHighMetadata)) {
         targetMetadata.push_back(TxContactHighMetadata);
+    }
+    if (metadataAddresses.contains(TalkGroupsMetadata)) {
+        targetMetadata.push_back(TalkGroupsMetadata);
+    }
+    if (metadataAddresses.contains(TalkGroupCounterMetadata)) {
+        targetMetadata.push_back(TalkGroupCounterMetadata);
     }
     if (metadataAddresses.contains(ScanListMetadata)) {
         targetMetadata.push_back(ScanListMetadata);
@@ -671,89 +665,25 @@ DM32SelectiveReadResult DM32Connection::readChannelsSelective(
     result.dataBlockCount = static_cast<int>(result.blocks.size());
     result.referencedContactIds = referencedContactIds(result.channelCount, result.blocks);
 
-    if (!result.referencedContactIds.isEmpty() && result.contactBase != 0 && result.contactEnd > result.contactBase) {
+    if (!result.referencedContactIds.isEmpty()) {
         progress(
             89,
-            QStringLiteral("READ RADIO // %1 REFERENCED CONTACTS // READING DATABASE HEADER")
+            QStringLiteral("READ RADIO // %1 REFERENCED CONTACTS // RESOLVING CODEPLUG TALK GROUPS")
                 .arg(result.referencedContactIds.size()));
 
-        QByteArray contactCountData;
-        QString contactReadError;
-        if (readMemory(port, result.contactBase, 4, contactCountData, contactReadError)
-            && contactCountData.size() == 4) {
-            result.bytesTransferred += contactCountData.size();
-            const quint32 databaseCount = readUint32LE(contactCountData, 0);
-            if (databaseCount <= 1000000U) {
-                result.contactDatabaseCount = static_cast<int>(databaseCount);
+        const DM32MemoryBlock *talkGroups = findBlockByMetadata(result.blocks, TalkGroupsMetadata);
+        if (talkGroups) {
+            result.contactBlocks.push_back({talkGroups->address, 0, talkGroups->data});
+            result.contactBlockCount = 1;
+
+            const DM32MemoryBlock *counter = findBlockByMetadata(result.blocks, TalkGroupCounterMetadata);
+            if (counter && counter->data.size() > TalkGroupCounterOffset) {
+                result.contactDatabaseCount = byteValue(counter->data.at(TalkGroupCounterOffset));
+            } else {
+                result.contactWarning = QStringLiteral("TALK GROUP COUNTER BLOCK 0x06 NOT AVAILABLE");
             }
-
-            int effectiveCount = result.contactDatabaseCount;
-            if (effectiveCount <= 0 || (result.contactCapacity > 0 && effectiveCount > result.contactCapacity)) {
-                effectiveCount = result.contactCapacity;
-            }
-
-            QVector<int> filteredIds;
-            filteredIds.reserve(result.referencedContactIds.size());
-            for (const int id : result.referencedContactIds) {
-                if (effectiveCount <= 0 || id <= effectiveCount) {
-                    filteredIds.push_back(id);
-                }
-            }
-            result.referencedContactIds = filteredIds;
-
-            QSet<int> requiredContactBlocks;
-            for (const int id : result.referencedContactIds) {
-                if (id > 0) {
-                    requiredContactBlocks.insert((id - 1) / ContactsPerBlock);
-                }
-            }
-
-            QVector<int> contactBlockNumbers;
-            contactBlockNumbers.reserve(requiredContactBlocks.size());
-            for (const int blockNumber : requiredContactBlocks) {
-                contactBlockNumbers.push_back(blockNumber);
-            }
-            std::sort(contactBlockNumbers.begin(), contactBlockNumbers.end());
-            const quint32 firstContactBlockAddress = result.contactBase & ~0x0FFFU;
-            const int contactPageCount = static_cast<int>(contactBlockNumbers.size());
-
-            result.contactBlocks.reserve(contactBlockNumbers.size());
-            for (int index = 0; index < contactPageCount; ++index) {
-                const int blockNumber = contactBlockNumbers.at(index);
-                const quint32 blockAddress = firstContactBlockAddress
-                    + static_cast<quint32>(blockNumber * DM32Constants::BlockSize);
-                if (blockAddress >= result.contactEnd) {
-                    result.contactWarning = QStringLiteral("CONTACT BLOCK %1 OUTSIDE RADIO CONTACT RANGE").arg(blockNumber);
-                    continue;
-                }
-
-                QByteArray blockData;
-                if (!readMemory(
-                        port,
-                        blockAddress,
-                        static_cast<quint16>(DM32Constants::BlockSize),
-                        blockData,
-                        contactReadError)
-                    || blockData.size() != DM32Constants::BlockSize) {
-                    result.contactWarning = QStringLiteral("CONTACT READ PARTIAL // %1").arg(contactReadError);
-                    break;
-                }
-
-                result.contactBlocks.push_back({blockAddress, blockNumber, blockData});
-                result.bytesTransferred += blockData.size();
-
-                const int percent = 90 + static_cast<int>(
-                    (static_cast<double>(index + 1) / static_cast<double>(qMax(1, contactPageCount))) * 7.0);
-                progress(
-                    percent,
-                    QStringLiteral("READ RADIO // CONTACT PAGE %1/%2 // %3")
-                        .arg(index + 1)
-                        .arg(contactPageCount)
-                        .arg(hexAddress(blockAddress)));
-            }
-            result.contactBlockCount = static_cast<int>(result.contactBlocks.size());
         } else {
-            result.contactWarning = QStringLiteral("CONTACT HEADER READ FAILED // %1").arg(contactReadError);
+            result.contactWarning = QStringLiteral("TALK GROUP DATA BLOCK 0x44 NOT AVAILABLE");
         }
     }
 
