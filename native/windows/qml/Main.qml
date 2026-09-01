@@ -107,7 +107,7 @@ ApplicationWindow {
                     Text { text: "TARGET  : " + (appController.radioDetected ? appController.radioModel : "DM-32UV / DP570UV"); color: appController.radioDetected ? window.green : window.silver; font.family: "Consolas"; font.pixelSize: 10 }
                     Text { text: "PORT    : " + (appController.radioDetected ? appController.detectedPort : "UNBOUND"); color: appController.radioDetected ? window.green : window.silverDim; font.family: "Consolas"; font.pixelSize: 10 }
                     Text {
-                        text: "CONTACT : " + (appController.contactsReady ? (appController.contactCount + " REFERENCED / " + appController.contactDatabaseCount + " DATABASE") : "NOT LOADED")
+                        text: "CONTACT : " + (appController.contactsReady ? (appController.contactCount + " REFERENCED / " + appController.contactDatabaseCount + " TG TABLE") : "NOT LOADED")
                         color: appController.contactsReady ? window.green : window.silverDim
                         font.family: "Consolas"
                         font.pixelSize: 10
